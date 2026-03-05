@@ -6,6 +6,7 @@
 <title>Mata — Analysis</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--bg:#04060b;--s1:#0a0e18;--s2:#111827;--bd:#1e2a40;--bd2:#283550;--tx:#e2e8f0;--txd:#94a3b8;--tx3:#64748b;--g:#22c55e;--g2:#4ade80;--r:#ef4444;--r2:#f87171;--o:#f59e0b;--o2:#fbbf24;--b:#3b82f6;--b2:#60a5fa;--v:#a78bfa;--v2:#c4b5fd;--t:#2dd4bf}
 *{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--tx);font-family:'Instrument Sans',sans-serif;-webkit-font-smoothing:antialiased}.mono{font-family:'JetBrains Mono',monospace}
@@ -169,6 +170,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
   </details>
   <div style="margin-top:16px">
     <button id="btnAnalyse" style="display:none;background:linear-gradient(135deg,var(--g),var(--t));color:#000;font-weight:700;font-size:13px;padding:10px 32px;border:none;border-radius:8px;cursor:pointer;font-family:'Instrument Sans',sans-serif;letter-spacing:.5px">&rarr; Lancer l&rsquo;Analyse</button>
+    <button id="btnLoadSession" style="background:#f59e0b;color:#000;font-weight:700;font-size:11px;padding:8px 20px;border:none;border-radius:8px;cursor:pointer;font-family:'Instrument Sans',sans-serif;margin-left:12px">&nbsp;&#128194; Charger une session&nbsp;</button>
   </div>
 </div>
 <div id="D">
@@ -212,6 +214,9 @@ var CATS={
 };
 var SKIP=['Chambre froide','Linguere','Dahra'];
 var DATA={},TAB='__all__',CAT='perf',dbg=[];
+var RAW_FILES={};
+var AUTO_ANALYSE=false; /* Store raw ArrayBuffers: {reconciliation:ab, achats:ab, ventes:ab, packs:str} */
+var RAW_FILES={}; /* store raw file data: {reconciliation:ArrayBuffer, achats:AB, ventes:AB, packs:string} */
 
 /* ══════ PERF CONFIG ══════ */
 var PRIX={bovin:3720,veau:4000,poulet:2800,agneau:4300,poisson:3000};
@@ -233,6 +238,7 @@ var POISSON_CONFIG={
   'Thiof':{achat:3000,vente:4000}
 };
 var PRIX_DATE={}; /* override per pdv/date: {pdv:{dateKey:{bovin:X,...}}} */
+var PRIX_PDV={}; /* override per pdv: {'Keur Massar':{poulet:1910},...} */
 var CHARGES={
   'O.Foire':{sal_com:100000,nb_com:2,sal_bou:150000,nb_bou:2,loyer:500000,elec:150000,internet:10000,autres:0},
   'Keur Massar':{sal_com:100000,nb_com:1,sal_bou:150000,nb_bou:1,loyer:150000,elec:25000,internet:5000,autres:0},
@@ -247,7 +253,8 @@ var REVENU_SUPP={
 };
 function getChargeMonthly(pdv){var c=CHARGES[pdv];if(!c)return 0;return c.sal_com*c.nb_com+c.sal_bou*c.nb_bou+c.loyer+c.elec+c.internet+(c.autres||0);}
 function getChargeDaily(pdv){return getChargeMonthly(pdv)/30;}
-function getPrix(pdv,dk,cat){if(PRIX_DATE[pdv]&&PRIX_DATE[pdv][dk]&&PRIX_DATE[pdv][dk][cat]!==undefined)return PRIX_DATE[pdv][dk][cat];return PRIX[cat]||0;}
+function getPrix(pdv,dk,cat){if(PRIX_DATE[pdv]&&PRIX_DATE[pdv][dk]&&PRIX_DATE[pdv][dk][cat]!==undefined)return PRIX_DATE[pdv][dk][cat];if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];return PRIX[cat]||0;}
+function getEffPrix(pdv,cat){if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];return PRIX[cat]||0;}
 
 /* Compute selling price stats per category for a PdV */
 function getSellStats(pdv){
@@ -439,6 +446,7 @@ fi3.addEventListener('change',function(e){if(e.target.files[0])loadVentes(e.targ
 function loadVentes(file){
   var reader=new FileReader();
   reader.onload=function(e){
+    RAW_FILES.ventes=e.target.result;RAW_FILES.ventesName=file.name;
     try{
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
       var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{raw:false,defval:''});
@@ -506,6 +514,7 @@ function loadVentes(file){
 function loadAchats(file){
   var reader=new FileReader();
   reader.onload=function(e){
+    RAW_FILES.achats=e.target.result;RAW_FILES.achatsName=file.name;
     try{
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
       var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{raw:false,defval:''});
@@ -565,6 +574,7 @@ function load(file){
   var reader=new FileReader();
   reader.onerror=function(){showErr('Erreur lecture');};
   reader.onload=function(e){
+    RAW_FILES.reconciliation=e.target.result;RAW_FILES.reconciliationName=file.name;
     log('FileReader onload');
     try{
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
@@ -626,6 +636,7 @@ function load(file){
       document.getElementById('fileOk').textContent='\u2705 '+Object.keys(DATA).length+' PdV charg\u00e9s ('+file.name+')';
       document.getElementById('fileOk').style.display='block';
       log('Load complete OK');
+      if(AUTO_ANALYSE){AUTO_ANALYSE=false;document.getElementById('btnAnalyse').click();}
     }catch(err){showErr('Erreur Excel: '+err.message+'\n\nStack:\n'+err.stack);}
   };
   reader.readAsArrayBuffer(file);
@@ -805,13 +816,14 @@ function updateExcBox(){
 function buildFpBar(){
   var el=document.getElementById('fpBar'),cks=Object.keys(CATS),h='';
   for(var i=0;i<cks.length;i++){var c=CATS[cks[i]];if(i>0)h+='<div class="sep"></div>';h+='<label style="color:'+c.color+'">'+c.icon+'</label><input type="number" data-c="'+cks[i]+'" value="'+c.fp+'" min="0" max="20" step="0.5" class="fpC"><span class="u">%</span>';}
-  h+='<div class="sep"></div><button id="btnR">&larr;</button><button id="btnExport" style="background:var(--g);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce5 Excel</button><button id="btnPDF" style="background:var(--v);color:#fff;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcc4 PDF</button><button id="btnPacks" style="background:var(--t);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce6 Packs</button>';
+  h+='<div class="sep"></div><button id="btnR">&larr;</button><button id="btnExport" style="background:var(--g);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce5 Excel</button><button id="btnPDF" style="background:var(--v);color:#fff;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcc4 PDF</button><button id="btnPacks" style="background:var(--t);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce6 Packs</button><button id="btnSave" style="background:#f59e0b;color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcbe Sauvegarder</button>';
   el.innerHTML=h;
-  el.querySelectorAll('.fpC').forEach(function(inp){inp.addEventListener('input',function(){CATS[this.dataset.c].fp=parseFloat(this.value)||0;render();});});
+  el.querySelectorAll('.fpC').forEach(function(inp){inp.addEventListener('change',function(){CATS[this.dataset.c].fp=parseFloat(this.value)||0;render();});});
   document.getElementById('btnR').addEventListener('click',function(){document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';});
   document.getElementById('btnExport').addEventListener('click',exportExcel);
   document.getElementById('btnPDF').addEventListener('click',exportPDF);
   document.getElementById('btnPacks').addEventListener('click',importPacks);
+  document.getElementById('btnSave').addEventListener('click',saveSession);
 }
 function render(){
   /* Apply category overrides dynamically */
@@ -1192,13 +1204,19 @@ function renderPdv(el,pdv,ck){
 }
 
 /*══════ PERF: PRIX INPUTS ══════*/
-function renderPrixInputs(){
+function renderPrixInputs(pdv){
+  var cats=['bovin','veau','poulet','agneau','poisson'];
+  var icons=['\ud83e\udd69','\ud83e\udd69','\ud83c\udf57','\ud83d\udc11','\ud83d\udc1f'];
+  var labels=['Boeuf','Veau','Poulet','Agneau','Poisson'];
+  var colors=['#dc2626','#dc2626','#d97706','#6366f1','#06b6d4'];
+  var units=['F/kg','F/kg','F/pcs','F/kg','F/kg'];
   var h='<div class="perfPrix">';
-  h+='<div class="pp"><label style="color:#dc2626">\ud83e\udd69 Boeuf</label><input type="number" id="px_bovin" value="'+PRIX.bovin+'" min="0" step="100"><span class="u">F/kg</span></div>';
-  h+='<div class="pp"><label style="color:#dc2626">\ud83e\udd69 Veau</label><input type="number" id="px_veau" value="'+PRIX.veau+'" min="0" step="100"><span class="u">F/kg</span></div>';
-  h+='<div class="pp"><label style="color:#d97706">\ud83c\udf57 Poulet</label><input type="number" id="px_poulet" value="'+PRIX.poulet+'" min="0" step="100"><span class="u">F/pcs</span></div>';
-  h+='<div class="pp"><label style="color:#6366f1">\ud83d\udc11 Agneau</label><input type="number" id="px_agneau" value="'+PRIX.agneau+'" min="0" step="100"><span class="u">F/kg</span></div>';
-  h+='<div class="pp"><label style="color:#06b6d4">\ud83d\udc1f Poisson</label><input type="number" id="px_poisson" value="'+PRIX.poisson+'" min="0" step="100"><span class="u">F/kg</span></div>';
+  for(var ci=0;ci<cats.length;ci++){
+    var k=cats[ci];
+    var effPx=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined?PRIX_PDV[pdv][k]:PRIX[k];
+    var isOverride=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined;
+    h+='<div class="pp"><label style="color:'+colors[ci]+'">'+icons[ci]+' '+labels[ci]+'</label><input type="number" class="pxI" data-c="'+k+'"'+(pdv?' data-pdv="'+pdv+'"':'')+' value="'+effPx+'" min="0" step="100"'+(isOverride?' style="border-color:#7c3aed;background:#1a1035"':'')+'><span class="u">'+units[ci]+'</span>'+(isOverride?'<span style="font-size:7px;color:#a78bfa;cursor:pointer" class="pxRst" data-c="'+k+'" data-pdv="'+pdv+'" title="R\u00e9initialiser au prix global ('+PRIX[k]+')">\u21a9</span>':'')+'</div>';
+  }
   h+='</div>';
   /* Product-level cost overrides */
   h+='<details class="perfChg" style="margin-bottom:12px"><summary>\ud83c\udff7\ufe0f Co\u00fbt produit sp\u00e9cifique (0 = gratuit)</summary><div class="cg" style="margin-top:8px">';
@@ -1225,9 +1243,26 @@ function renderPrixInputs(){
 
 /*══════ PERF: CHARGES EDITOR ══════*/
 function bindPrixInputs(){
-  ['bovin','veau','poulet','agneau','poisson'].forEach(function(k){
-    var el=document.getElementById('px_'+k);
-    if(el)el.addEventListener('input',function(){PRIX[k]=parseFloat(this.value)||0;render();});
+  document.querySelectorAll('.pxI').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      var k=this.dataset.c,pdv=this.dataset.pdv,v=parseFloat(this.value)||0;
+      if(pdv){
+        /* PdV-specific override */
+        if(!PRIX_PDV[pdv])PRIX_PDV[pdv]={};
+        PRIX_PDV[pdv][k]=v;
+      } else {
+        /* Global */
+        PRIX[k]=v;
+      }
+      render();
+    });
+  });
+  document.querySelectorAll('.pxRst').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var k=this.dataset.c,pdv=this.dataset.pdv;
+      if(pdv&&PRIX_PDV[pdv]){delete PRIX_PDV[pdv][k];if(!Object.keys(PRIX_PDV[pdv]).length)delete PRIX_PDV[pdv];}
+      render();
+    });
   });
   document.querySelectorAll('.ppI').forEach(function(inp){
     inp.addEventListener('change',function(){
@@ -1478,7 +1513,7 @@ function renderPerfPdv(el,pdv){
   if(!days||!days.length){el.innerHTML='<div class="note" style="border-left-color:var(--o)">Pas de donn\u00e9es pour '+pdv+'.</div>';return;}
 
   var h='<div class="st">\ud83d\udcc8 Performance \u2014 '+pdv+'</div>';
-  h+=renderPrixInputs();
+  h+=renderPrixInputs(pdv);
 
   var nDays=days.length;
   var chgDaily=getChargeDaily(pdv);
@@ -1512,8 +1547,8 @@ function renderPerfPdv(el,pdv){
   /* Sell stats for this PdV */
   var ss2=getSellStats(pdv);
   var bPx=ss2.bovin.qty>0?Math.round(ss2.bovin.fcfa/ss2.bovin.qty):0;
-  var bSpread=bPx-PRIX.bovin;
-  if(bPx>0)h+='<div class="note" style="border-left-color:var(--b)"><b>Prix vente Boeuf :</b> '+FK(bPx)+' F/kg (achat '+FK(PRIX.bovin)+') \u2192 Spread <b style="color:'+(bSpread>=0?'var(--g)':'var(--r2)')+'">'+FS(bSpread)+' F/kg</b> ('+F(PRIX.bovin>0?bSpread/PRIX.bovin*100:0,1)+'%)</div>';
+  var bSpread=bPx-getEffPrix(pdv,'bovin');
+  if(bPx>0)h+='<div class="note" style="border-left-color:var(--b)"><b>Prix vente Boeuf :</b> '+FK(bPx)+' F/kg (achat '+FK(getEffPrix(pdv,'bovin'))+') \u2192 Spread <b style="color:'+(bSpread>=0?'var(--g)':'var(--r2)')+'">'+FS(bSpread)+' F/kg</b> ('+F(getEffPrix(pdv,'bovin')>0?bSpread/PRIX.bovin*100:0,1)+'%)</div>';
 
   h+='<div class="tw sc"><table><thead><tr><th style="text-align:left">Date</th><th>CA</th><th>Co\u00fbt Achat</th><th>M. Brute</th><th>Charges/j</th><th>M. Nette</th><th>M.N %</th></tr></thead><tbody>';
   for(var i=0;i<dayRows.length;i++){
@@ -1552,18 +1587,18 @@ function renderPerfPdv(el,pdv){
       var ppx3=PRIX_PRODUIT[pn3];
       if(ppx3!==undefined){prodMap[pn3].cost+=(theo3||0)*ppx3;prodMap[pn3].px=ppx3;}
       else if(catLo3==='poisson'){
-        var pc3=POISSON_CONFIG[pn3];var bpx=pc3?pc3.achat:(PRIX.poisson||3000);
+        var pc3=POISSON_CONFIG[pn3];var bpx=pc3?pc3.achat:(getEffPrix(pdv,'poisson'));
         prodMap[pn3].cost+=bestV(p3)*bpx;prodMap[pn3].px=bpx;
         /* Estimate CA from vente price if reelF=0 (Reconciliation has 0 for individual poisson) */
         if(reelF3===0&&pc3&&reel3>0)prodMap[pn3].reelF+=reel3*pc3.vente;
       }
       else if(catLo3==='bovin'){
         var qc3=theo3||reel3; /* use théo, fallback reel if théo=0 */
-        if(pn3.toLowerCase().indexOf('veau')>=0){prodMap[pn3].cost+=qc3*(PRIX.veau||4000);prodMap[pn3].px=PRIX.veau||4000;}
-        else{prodMap[pn3].cost+=qc3*(PRIX.bovin||3720);prodMap[pn3].px=PRIX.bovin||3720;}
+        if(pn3.toLowerCase().indexOf('veau')>=0){prodMap[pn3].cost+=qc3*getEffPrix(pdv,"veau");prodMap[pn3].px=getEffPrix(pdv,"veau");}
+        else{prodMap[pn3].cost+=qc3*getEffPrix(pdv,"bovin");prodMap[pn3].px=getEffPrix(pdv,"bovin");}
       }
-      else if(catLo3==='volaille'){var qc4=theo3||reel3;prodMap[pn3].cost+=qc4*(PRIX.poulet||2800);prodMap[pn3].px=PRIX.poulet||2800;}
-      else if(catLo3==='ovin'||catLo3==='caprin'){var qc5=theo3||reel3;prodMap[pn3].cost+=qc5*(PRIX.agneau||4300);prodMap[pn3].px=PRIX.agneau||4300;}
+      else if(catLo3==='volaille'){var qc4=theo3||reel3;prodMap[pn3].cost+=qc4*getEffPrix(pdv,"poulet");prodMap[pn3].px=getEffPrix(pdv,"poulet");}
+      else if(catLo3==='ovin'||catLo3==='caprin'){var qc5=theo3||reel3;prodMap[pn3].cost+=qc5*getEffPrix(pdv,"agneau");prodMap[pn3].px=getEffPrix(pdv,"agneau");}
     }
   }
   /* Poisson: add from POISSON_VENTES if loaded */
@@ -1574,8 +1609,8 @@ function renderPerfPdv(el,pdv){
       if(!prodMap[pvn])prodMap[pvn]={cat:'Poisson',reel:0,theo:0,reelF:0,cost:0};
       prodMap[pvn].reel=pvd.qty;prodMap[pvn].reelF=pvd.fcfa;
       var pcCfg=POISSON_CONFIG[pvn];
-      prodMap[pvn].cost=pvd.qty*(pcCfg?pcCfg.achat:(PRIX.poisson||3000));
-      prodMap[pvn].px=pcCfg?pcCfg.achat:(PRIX.poisson||3000);
+      prodMap[pvn].cost=pvd.qty*(pcCfg?pcCfg.achat:(getEffPrix(pdv,'poisson')));
+      prodMap[pvn].px=pcCfg?pcCfg.achat:(getEffPrix(pdv,'poisson'));
     }
   }
   /* Packs: add composition cost to Pack product lines */
@@ -1621,18 +1656,18 @@ function renderPerfPdv(el,pdv){
     var dispCost=pd4.cost,dispQty=qty4;
     /* If Boeuf and veau was reclassified, subtract reclassified portion from cost */
     if(pr.name==='Boeuf'&&hasVeauReclass){
-      dispCost=pd4.cost-Math.round(vRecl*(PRIX.bovin||3720));
+      dispCost=pd4.cost-Math.round(vRecl*getEffPrix(pdv,"bovin"));
       dispQty=pd4.theo-vRecl;
     }
     /* If Veau, split into 2 rows */
     if(pr.name==='Veau'&&hasVeauReclass){
       var caNatif=vNatif>0?Math.round(vPxVente*vNatif):0;
-      var costNatif=Math.round(vNatif*(PRIX.veau||4000));
+      var costNatif=Math.round(vNatif*getEffPrix(pdv,"veau"));
       var caRecl=vRecl>0?Math.round(vPxVente*vRecl):0;
-      var costRecl=Math.round(vRecl*(PRIX.bovin||3720));
+      var costRecl=Math.round(vRecl*getEffPrix(pdv,"bovin"));
       tCostP+=costNatif+costRecl;tCAP+=pd4.reelF;
-      h+='<tr><td style="font-weight:600;color:var(--tx)">Veau (natif)</td><td style="color:var(--txd);font-size:8px">Bovin</td><td>'+F(vNatif)+' kg</td><td>'+F(vNatif)+' kg</td><td style="color:var(--o2)">'+FK(PRIX.veau||4000)+'</td><td style="color:var(--o2)">'+FK(costNatif)+'</td><td style="color:var(--b2)">'+FK(caNatif)+'</td><td style="color:'+(caNatif-costNatif>=0?'var(--g)':'var(--r2)')+'">'+FK(caNatif-costNatif)+'</td></tr>';
-      h+='<tr><td style="font-weight:600;color:var(--v2)">Veau (reclass. boeuf)</td><td style="color:var(--txd);font-size:8px">Bovin\u2192Veau</td><td style="color:var(--tx3)">\u2014</td><td>'+F(vRecl)+' kg</td><td style="color:var(--o2)">'+FK(PRIX.bovin||3720)+'</td><td style="color:var(--o2)">'+FK(costRecl)+'</td><td style="color:var(--b2)">'+FK(caRecl)+'</td><td style="color:'+(caRecl-costRecl>=0?'var(--g)':'var(--r2)')+'">'+FK(caRecl-costRecl)+'</td></tr>';
+      h+='<tr><td style="font-weight:600;color:var(--tx)">Veau (natif)</td><td style="color:var(--txd);font-size:8px">Bovin</td><td>'+F(vNatif)+' kg</td><td>'+F(vNatif)+' kg</td><td style="color:var(--o2)">'+FK(getEffPrix(pdv,'veau'))+'</td><td style="color:var(--o2)">'+FK(costNatif)+'</td><td style="color:var(--b2)">'+FK(caNatif)+'</td><td style="color:'+(caNatif-costNatif>=0?'var(--g)':'var(--r2)')+'">'+FK(caNatif-costNatif)+'</td></tr>';
+      h+='<tr><td style="font-weight:600;color:var(--v2)">Veau (reclass. boeuf)</td><td style="color:var(--txd);font-size:8px">Bovin\u2192Veau</td><td style="color:var(--tx3)">\u2014</td><td>'+F(vRecl)+' kg</td><td style="color:var(--o2)">'+FK(getEffPrix(pdv,'bovin'))+'</td><td style="color:var(--o2)">'+FK(costRecl)+'</td><td style="color:var(--b2)">'+FK(caRecl)+'</td><td style="color:'+(caRecl-costRecl>=0?'var(--g)':'var(--r2)')+'">'+FK(caRecl-costRecl)+'</td></tr>';
       continue;
     }
     var marge4=pd4.reelF-dispCost;
@@ -1666,11 +1701,13 @@ function renderPerfPdv(el,pdv){
     h+=diagH;
   }
   if(hasVeauReclass){
-    h+='<div class="note" style="margin-top:6px;border-left-color:var(--v)"><b style="color:var(--v2)">Veau reclassifi\u00e9</b> : '+F(vRecl)+' kg de boeuf vendus sous l\u2019appellation Veau (exc\u00e9dent au-del\u00e0 du stock natif de '+F(vNatif)+' kg). Le co\u00fbt est calcul\u00e9 au prix d\u2019achat <b>boeuf</b> ('+FK(PRIX.bovin)+' F/kg) car la b\u00eate est un boeuf, mais vendu au prix du veau ('+FK(vPxVente)+' F/kg) \u2192 spread <span style="color:'+(vPxVente-(PRIX.bovin||0)>=0?'var(--g)':'var(--r2)')+'">'+FS(vPxVente-(PRIX.bovin||0))+' F/kg</span>.</div>';
+    h+='<div class="note" style="margin-top:6px;border-left-color:var(--v)"><b style="color:var(--v2)">Veau reclassifi\u00e9</b> : '+F(vRecl)+' kg de boeuf vendus sous l\u2019appellation Veau (exc\u00e9dent au-del\u00e0 du stock natif de '+F(vNatif)+' kg). Le co\u00fbt est calcul\u00e9 au prix d\u2019achat <b>boeuf</b> ('+FK(getEffPrix(pdv,'bovin'))+' F/kg) car la b\u00eate est un boeuf, mais vendu au prix du veau ('+FK(vPxVente)+' F/kg) \u2192 spread <span style="color:'+(vPxVente-(getEffPrix(pdv,'bovin'))>=0?'var(--g)':'var(--r2)')+'">'+FS(vPxVente-(getEffPrix(pdv,'bovin')))+' F/kg</span>.</div>';
   }
   h+='</details>';
 
   h+=renderPackSection(pdv);
+
+  h+=renderPrixVentePdv(pdv);
 
   h+='<details class="perfChg"><summary>\ud83d\udcb0 Revenu suppl\u00e9mentaire '+pdv+' \u2014 '+FK(REVENU_SUPP[pdv]||0)+' FCFA/mois ('+(pvHasRS?FK(Math.round((REVENU_SUPP[pdv]||0)/30))+'/j':'0')+' )</summary><div class="cg" style="margin-top:6px"><div class="ci"><span>Montant mensuel</span><input class="rsI" data-pdv="'+pdv+'" value="'+(REVENU_SUPP[pdv]||0)+'" type="number" min="0" step="10000"></div></div></details>';
 
@@ -1826,7 +1863,7 @@ function renderSim(el){
   /* Bind delta inputs with debounce */
   var simTimer=null;
   document.querySelectorAll('.simD').forEach(function(inp){
-    inp.addEventListener('input',function(){
+    inp.addEventListener('change',function(){
       var self=this;
       clearTimeout(simTimer);
       simTimer=setTimeout(function(){SIM_DELTA[self.dataset.c]=parseFloat(self.value)||0;render();},600);
@@ -1977,6 +2014,7 @@ function importPacks(){
     var reader=new FileReader();
     reader.onload=function(e){
       try{
+        RAW_FILES.packs=e.target.result;RAW_FILES.packsName=inp.files[0].name;
         PACK_DATA=JSON.parse(e.target.result);
         log('Packs loaded: '+PACK_DATA.globalAgregation.totalPacksVendus+' packs');
         render();
@@ -1985,6 +2023,71 @@ function importPacks(){
     reader.readAsText(inp.files[0]);
   });
   inp.click();
+}
+
+function renderPrixVentePdv(pdv){
+  if(!VENTES_DATA||!VENTES_DATA.orders)return'';
+  var prods={};
+  var oKeys=Object.keys(VENTES_DATA.orders);
+  for(var i=0;i<oKeys.length;i++){
+    var o=VENTES_DATA.orders[oKeys[i]];
+    if(o.pdv!==pdv)continue;
+    for(var j=0;j<o.items.length;j++){
+      var it=o.items[j];
+      if(!it.prod||it.qty===0)continue;
+      if(!prods[it.prod])prods[it.prod]={cat:it.cat,qty:0,fcfa:0};
+      prods[it.prod].qty+=it.qty;
+      prods[it.prod].fcfa+=it.montant;
+    }
+  }
+  var pArr=Object.keys(prods);
+  if(!pArr.length)return'';
+  /* Build consolidated groups: "Boeuf en détail"+"Boeuf en gros" → "Boeuf" */
+  var groups={};
+  var GROUP_MAP={
+    'Boeuf en d\u00e9tail':'Boeuf','Boeuf en gros':'Boeuf',
+    'Veau en d\u00e9tail':'Veau','Veau en gros':'Veau',
+    'Poulet en d\u00e9tail':'Poulet','Poulet en gros':'Poulet',
+    'Agneau en d\u00e9tail':'Agneau','Agneau en gros':'Agneau'
+  };
+  for(i=0;i<pArr.length;i++){
+    var gn=GROUP_MAP[pArr[i]];
+    if(gn){
+      if(!groups[gn])groups[gn]={qty:0,fcfa:0,subs:[]};
+      groups[gn].qty+=prods[pArr[i]].qty;
+      groups[gn].fcfa+=prods[pArr[i]].fcfa;
+      groups[gn].subs.push(pArr[i]);
+    }
+  }
+  /* Sort products by CA desc */
+  pArr.sort(function(a,b){return prods[b].fcfa-prods[a].fcfa;});
+  var h='<details class="perfChg"><summary>\ud83c\udff7\ufe0f Prix de vente moyen par produit \u2014 '+pdv+'</summary>';
+  h+='<div class="tw" style="margin-top:8px"><table><thead><tr><th style="text-align:left">Produit</th><th>Cat.</th><th>Qty vendue</th><th>CA</th><th>Prix moy. pond\u00e9r\u00e9</th></tr></thead><tbody>';
+  var rendered={};
+  for(i=0;i<pArr.length;i++){
+    var pn=pArr[i],pd=prods[pn];
+    var px=pd.qty>0?Math.round(pd.fcfa/pd.qty):0;
+    var unit=pd.cat==='Volaille'?'pcs':'kg';
+    h+='<tr><td style="font-weight:600">'+pn+'</td><td style="color:var(--txd);font-size:8px">'+pd.cat+'</td><td>'+F(pd.qty)+' '+unit+'</td><td style="color:var(--b2)">'+FK(Math.round(pd.fcfa))+'</td><td style="color:var(--b2);font-weight:600">'+FK(px)+'</td></tr>';
+    /* Insert consolidated row after last sub of a group */
+    var gn2=GROUP_MAP[pn];
+    if(gn2&&!rendered[gn2]){
+      /* Check if all subs of this group have been output */
+      var grp=groups[gn2],allDone=true;
+      for(var si=0;si<grp.subs.length;si++){
+        var found=false;
+        for(var si2=0;si2<=i;si2++){if(pArr[si2]===grp.subs[si]){found=true;break;}}
+        if(!found){allDone=false;break;}
+      }
+      if(allDone&&grp.subs.length>1){
+        var gpx=grp.qty>0?Math.round(grp.fcfa/grp.qty):0;
+        h+='<tr style="background:var(--s2)"><td style="font-weight:700;color:var(--v2);padding-left:16px">\u21b3 '+gn2+' (moy.)</td><td></td><td style="color:var(--v2)">'+F(grp.qty)+' '+(gn2==='Poulet'?'pcs':'kg')+'</td><td style="color:var(--v2)">'+FK(Math.round(grp.fcfa))+'</td><td style="color:var(--v2);font-weight:700">'+FK(gpx)+'</td></tr>';
+        rendered[gn2]=true;
+      }
+    }
+  }
+  h+='</tbody></table></div></details>';
+  return h;
 }
 
 function renderPackSection(pdv){
@@ -2374,6 +2477,175 @@ function sendChat(){
     addMsg('assistant','\u274c Erreur r\u00e9seau: '+err.message);
   });
 }
+
+/*══════ SESSION SAVE/LOAD ══════*/
+function saveSession(){
+  var zip=new JSZip();
+  /* Files */
+  if(RAW_FILES.reconciliation)zip.file(RAW_FILES.reconciliationName||'reconciliation.xlsx',RAW_FILES.reconciliation);
+  if(RAW_FILES.achats)zip.file(RAW_FILES.achatsName||'achats.xlsx',RAW_FILES.achats);
+  if(RAW_FILES.ventes)zip.file(RAW_FILES.ventesName||'ventes.xlsx',RAW_FILES.ventes);
+  if(RAW_FILES.packs)zip.file(RAW_FILES.packsName||'packs.json',RAW_FILES.packs);
+  /* Config */
+  var fpVals={};var cks=Object.keys(CATS);for(var i=0;i<cks.length;i++)fpVals[cks[i]]=CATS[cks[i]].fp;
+  var config={
+    PRIX:PRIX,PRIX_PDV:PRIX_PDV,PRIX_PRODUIT:PRIX_PRODUIT,PRIX_DATE:PRIX_DATE,
+    POISSON_CONFIG:POISSON_CONFIG,CAT_OVERRIDE:CAT_OVERRIDE,
+    CHARGES:CHARGES,REVENU_SUPP:REVENU_SUPP,FRAIS_AB:FRAIS_AB,
+    RANK_EXCLUDE:RANK_EXCLUDE,SIM_DELTA:SIM_DELTA,
+    freinte:fpVals,
+    fileNames:{
+      reconciliation:RAW_FILES.reconciliationName||null,
+      achats:RAW_FILES.achatsName||null,
+      ventes:RAW_FILES.ventesName||null,
+      packs:RAW_FILES.packsName||null
+    }
+  };
+  zip.file('config.json',JSON.stringify(config,null,2));
+  /* Generate */
+  zip.generateAsync({type:'blob'}).then(function(blob){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    var dates=[];var pdvs=Object.keys(DATA);for(i=0;i<pdvs.length;i++){var dd=DATA[pdvs[i]]||[];for(var d=0;d<dd.length;d++)if(dd[d]&&dd[d].date)dates.push(dd[d].date);}
+    var minD=dates.length?new Date(Math.min.apply(null,dates)).toISOString().slice(0,10):'';
+    var maxD=dates.length?new Date(Math.max.apply(null,dates)).toISOString().slice(0,10):'';
+    a.download='Mata_Session_'+minD+'_'+maxD+'.zip';
+    a.click();URL.revokeObjectURL(a.href);
+  });
+}
+
+function loadSession(){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='.zip';
+  inp.addEventListener('change',function(){
+    if(!inp.files[0])return;
+    JSZip.loadAsync(inp.files[0]).then(function(zip){
+      /* Read config first */
+      var configFile=zip.file('config.json');
+      if(!configFile){alert('Fichier config.json manquant dans le zip.');return;}
+      configFile.async('string').then(function(cfgStr){
+        var cfg=JSON.parse(cfgStr);
+        /* Apply config */
+        if(cfg.PRIX){var ks=Object.keys(cfg.PRIX);for(var i=0;i<ks.length;i++)PRIX[ks[i]]=cfg.PRIX[ks[i]];}
+        if(cfg.PRIX_PDV){var ks2=Object.keys(cfg.PRIX_PDV);for(i=0;i<ks2.length;i++)PRIX_PDV[ks2[i]]=cfg.PRIX_PDV[ks2[i]];}
+        if(cfg.PRIX_PRODUIT){var ks3=Object.keys(cfg.PRIX_PRODUIT);for(i=0;i<ks3.length;i++)PRIX_PRODUIT[ks3[i]]=cfg.PRIX_PRODUIT[ks3[i]];}
+        if(cfg.PRIX_DATE)PRIX_DATE=cfg.PRIX_DATE;
+        if(cfg.POISSON_CONFIG){var ks4=Object.keys(cfg.POISSON_CONFIG);for(i=0;i<ks4.length;i++)POISSON_CONFIG[ks4[i]]=cfg.POISSON_CONFIG[ks4[i]];}
+        if(cfg.CAT_OVERRIDE){var ks5=Object.keys(cfg.CAT_OVERRIDE);for(i=0;i<ks5.length;i++)CAT_OVERRIDE[ks5[i]]=cfg.CAT_OVERRIDE[ks5[i]];}
+        if(cfg.CHARGES){var ks6=Object.keys(cfg.CHARGES);for(i=0;i<ks6.length;i++)CHARGES[ks6[i]]=cfg.CHARGES[ks6[i]];}
+        if(cfg.REVENU_SUPP){var ks7=Object.keys(cfg.REVENU_SUPP);for(i=0;i<ks7.length;i++)REVENU_SUPP[ks7[i]]=cfg.REVENU_SUPP[ks7[i]];}
+        if(cfg.FRAIS_AB)FRAIS_AB=cfg.FRAIS_AB;
+        if(cfg.RANK_EXCLUDE)RANK_EXCLUDE=cfg.RANK_EXCLUDE;
+        if(cfg.SIM_DELTA)SIM_DELTA=cfg.SIM_DELTA;
+        if(cfg.freinte){var fk2=Object.keys(cfg.freinte);for(i=0;i<fk2.length;i++){if(CATS[fk2[i]])CATS[fk2[i]].fp=cfg.freinte[fk2[i]];}}
+
+        /* Load files sequentially */
+        var fnames=cfg.fileNames||{};
+        var reconFile=null;
+        zip.forEach(function(path,entry){
+          if(path==='config.json')return;
+          if(path.match(/reconciliation|Reconciliation/i))reconFile=entry;
+        });
+        /* Find files by name from config */
+        var pending=[];
+        function loadFileFromZip(key,callback){
+          var fname=fnames[key];
+          if(!fname){callback(null);return;}
+          var f=zip.file(fname);
+          if(!f){callback(null);return;}
+          f.async('arraybuffer').then(function(ab){callback(ab);}).catch(function(){callback(null);});
+        }
+        function loadTextFromZip(key,callback){
+          var fname=fnames[key];
+          if(!fname){callback(null);return;}
+          var f=zip.file(fname);
+          if(!f){callback(null);return;}
+          f.async('string').then(function(s){callback(s);}).catch(function(){callback(null);});
+        }
+
+        /* Load achats first (sets PRIX) */
+        loadFileFromZip('achats',function(ab){
+          if(ab){
+            RAW_FILES.achats=ab;RAW_FILES.achatsName=fnames.achats;
+            var wb2=XLSX.read(ab,{type:'array',cellDates:true});
+            var rows2=XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]],{raw:false,defval:''});
+            /* Minimal achats parse — config already has the right PRIX */
+          }
+          /* Load ventes */
+          loadFileFromZip('ventes',function(ab2){
+            if(ab2){
+              RAW_FILES.ventes=ab2;RAW_FILES.ventesName=fnames.ventes;
+              /* Parse ventes */
+              var wb3=XLSX.read(ab2,{type:'array',cellDates:true});
+              var rows3=XLSX.utils.sheet_to_json(wb3.Sheets[wb3.SheetNames[0]],{raw:false,defval:''});
+              POISSON_VENTES={};VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
+              for(var vi=0;vi<rows3.length;vi++){
+                var rv=rows3[vi];
+                var cat=String(rv['Cat\u00e9gorie']||'').trim();
+                var pdv=String(rv['Point de Vente']||'').trim();
+                var prod=String(rv['Produit']||'').trim();
+                var qty=parseFloat(String(rv['Quantit\u00e9']||'0').replace(/\s/g,'').replace(',','.'))||0;
+                var montant=parseFloat(String(rv['Montant']||'0').replace(/\s/g,'').replace(',','.'))||0;
+                var orderId=String(rv['Commande ID']||'').trim();
+                var numClient=String(rv['Num\u00e9ro Client']||'').trim();
+                var nomClient=String(rv['Nom Client']||'').trim();
+                var heure=String(rv['Heure']||'').trim();
+                var dateR=String(rv['Date']||'').trim();
+                if(cat.toLowerCase()==='poisson'&&pdv&&prod&&qty!==0){
+                  if(!POISSON_VENTES[pdv])POISSON_VENTES[pdv]={};
+                  if(!POISSON_VENTES[pdv][prod])POISSON_VENTES[pdv][prod]={qty:0,fcfa:0};
+                  POISSON_VENTES[pdv][prod].qty+=qty;POISSON_VENTES[pdv][prod].fcfa+=montant;
+                }
+                if(orderId){
+                  if(!VENTES_DATA.orders[orderId])VENTES_DATA.orders[orderId]={id:orderId,pdv:pdv,date:dateR,heure:heure,montant:0,numClient:numClient,nomClient:nomClient,items:[]};
+                  VENTES_DATA.orders[orderId].montant+=montant;
+                  VENTES_DATA.orders[orderId].items.push({prod:prod,cat:cat,qty:qty,montant:montant});
+                }
+                if(numClient){
+                  if(!VENTES_DATA.byClient[numClient])VENTES_DATA.byClient[numClient]={nom:nomClient,total:0,nOrders:0,orderIds:{},pdvs:{}};
+                  VENTES_DATA.byClient[numClient].total+=montant;
+                  if(nomClient)VENTES_DATA.byClient[numClient].nom=nomClient;
+                  VENTES_DATA.byClient[numClient].orderIds[orderId]=1;
+                  VENTES_DATA.byClient[numClient].pdvs[pdv]=(VENTES_DATA.byClient[numClient].pdvs[pdv]||0)+montant;
+                }
+                var h0=heure.split(':')[0]||'00';
+                VENTES_DATA.byHour[h0]=(VENTES_DATA.byHour[h0]||0)+1;
+                if(!VENTES_DATA.byPdv[pdv])VENTES_DATA.byPdv[pdv]={orders:{},lines:0};
+                VENTES_DATA.byPdv[pdv].orders[orderId]=1;VENTES_DATA.byPdv[pdv].lines++;
+              }
+              var cks2=Object.keys(VENTES_DATA.byClient);
+              for(var ci2=0;ci2<cks2.length;ci2++){VENTES_DATA.byClient[cks2[ci2]].nOrders=Object.keys(VENTES_DATA.byClient[cks2[ci2]].orderIds).length;}
+            }
+            /* Load packs */
+            loadTextFromZip('packs',function(txt){
+              if(txt){RAW_FILES.packs=txt;RAW_FILES.packsName=fnames.packs;PACK_DATA=JSON.parse(txt);}
+              /* Load reconciliation (main file — triggers parse) */
+              loadFileFromZip('reconciliation',function(ab3){
+                if(!ab3){alert('Fichier reconciliation manquant.');return;}
+                RAW_FILES.reconciliation=ab3;RAW_FILES.reconciliationName=fnames.reconciliation;
+                /* Simulate file load */
+                var fakeFile={name:fnames.reconciliation||'reconciliation.xlsx'};
+                var blob=new Blob([ab3]);
+                /* Set freinte inputs */
+                var fpIs=document.querySelectorAll('.fpI');
+                for(var fi2=0;fi2<fpIs.length;fi2++){
+                  var dc=fpIs[fi2].dataset.c;
+                  if(cfg.freinte&&cfg.freinte[dc]!==undefined){fpIs[fi2].value=cfg.freinte[dc];}
+                }
+                /* Trigger main load with auto-analyse */
+                AUTO_ANALYSE=true;
+                load(new File([ab3],fnames.reconciliation||'reconciliation.xlsx'));
+              });
+            });
+          });
+        });
+      });
+    }).catch(function(err){alert('Erreur zip: '+err.message);});
+  });
+  inp.click();
+}
+
+document.getElementById('btnLoadSession').addEventListener('click',loadSession);
 
 window.toggleChat=toggleChat;
 window.sendChat=sendChat;
