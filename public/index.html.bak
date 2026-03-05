@@ -233,7 +233,7 @@ var CHARGES={
 var FRAIS_AB={}; /* frais abattage by date key: {'2026-03-02':20000,...} */
 /* Revenu supplémentaire mensuel par PdV (ajouté au CA, lissé /30j) */
 var REVENU_SUPP={
-  'Mbao':0,'O.Foire':0,'Keur Massar':0,'Abattage':0,'Sacre Coeur':0
+  'Mbao':0,'O.Foire':0,'Keur Massar':0,'Abattage':0,'Sacre Coeur':400000
 };
 function getChargeMonthly(pdv){var c=CHARGES[pdv];if(!c)return 0;return c.sal_com*c.nb_com+c.sal_bou*c.nb_bou+c.loyer+c.elec+c.internet+(c.autres||0);}
 function getChargeDaily(pdv){return getChargeMonthly(pdv)/30;}
