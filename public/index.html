@@ -1353,17 +1353,21 @@ function renderPerfGlobal(el){
   }
   h+='</tbody></table></div></details>';
 
-  h+='<div class="tw"><table><thead><tr><th style="text-align:left">PdV</th><th>Jours</th><th>CA</th><th>Co\u00fbt Achat</th><th>M. Brute</th><th>M.B %</th><th>Charges</th><th>M. Nette</th><th>M.N %</th></tr></thead><tbody>';
+  h+='<div class="tw"><table><thead><tr><th style="text-align:left">PdV</th><th>Jours</th><th>CA</th><th>Co\u00fbt Achat</th><th>M. Brute</th><th>M.B %</th><th>Charges</th><th>M. Nette</th><th>M.N %</th><th style="color:var(--tx3)">Px Boeuf</th></tr></thead><tbody>';
   for(i=0;i<rows.length;i++){
     var r=rows[i];
     var cMB=r.mb>=0?'var(--t)':'var(--r2)',cMN=r.mn>=0?'var(--g)':'var(--r2)';
     var cpd=costPopupDet(r.det);
     var hasRS=REVENU_SUPP[r.pdv]&&REVENU_SUPP[r.pdv]>0;
     var rsTag=hasRS?' <span style="font-size:7px;background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle" title="Inclut '+FK(Math.round(REVENU_SUPP[r.pdv]/30*r.n))+' FCFA de revenu supp. ('+FK(REVENU_SUPP[r.pdv])+'/mois)">+RS</span>':'';
-    h+='<tr><td style="font-weight:600">'+r.pdv+'</td><td>'+r.n+'</td><td style="color:var(--b2)">'+FK(r.ca)+rsTag+'</td><td class="rcH" style="color:var(--o2)">'+FK(r.cost)+cpd+'</td><td style="color:'+cMB+';font-weight:700">'+FK(r.mb)+'</td><td style="color:'+cMB+'">'+F(r.mbPct,1)+'%</td><td>'+FK(Math.round(r.chg))+'</td><td style="color:'+cMN+';font-weight:700">'+FK(r.mn)+'</td><td style="color:'+cMN+'">'+F(r.mnPct,1)+'%</td></tr>';
+    var ss=getSellStats(r.pdv);var bpx=ss.bovin&&ss.bovin.qty>0?ss.bovin.px:0;
+    var bSpread=bpx-(PRIX.bovin||0);
+    h+='<tr><td style="font-weight:600">'+r.pdv+'</td><td>'+r.n+'</td><td style="color:var(--b2)">'+FK(r.ca)+rsTag+'</td><td class="rcH" style="color:var(--o2)">'+FK(r.cost)+cpd+'</td><td style="color:'+cMB+';font-weight:700">'+FK(r.mb)+'</td><td style="color:'+cMB+'">'+F(r.mbPct,1)+'%</td><td>'+FK(Math.round(r.chg))+'</td><td style="color:'+cMN+';font-weight:700">'+FK(r.mn)+'</td><td style="color:'+cMN+'">'+F(r.mnPct,1)+'%</td><td style="font-size:8px">'+(bpx?'<span style="color:var(--b2)">'+FK(bpx)+'</span> <span style="color:'+(bSpread>=0?'var(--g)':'var(--r2)')+'">'+FS(bSpread)+'</span>':'\u2014')+'</td></tr>';
   }
   var cpg=costPopupDet(gDet);
-  h+='<tr class="tot"><td>TOTAL</td><td></td><td style="color:var(--b2)">'+FK(gCA)+'</td><td class="rcH" style="color:var(--o2)">'+FK(gCost)+cpg+'</td><td style="color:'+(gMB>=0?'var(--t)':'var(--r2)')+'">'+FK(gMB)+'</td><td>'+F(gMBp,1)+'%</td><td>'+FK(Math.round(gChg))+'</td><td style="color:'+(gMN>=0?'var(--g)':'var(--r2)')+'">'+FK(gMN)+'</td><td>'+F(gMNp,1)+'%</td></tr>';
+  var gSS={bovin:{f:0,q:0}};for(i=0;i<pdvs.length;i++){var ssg=getSellStats(pdvs[i]);if(ssg.bovin){gSS.bovin.f+=ssg.bovin.fcfa;gSS.bovin.q+=ssg.bovin.qty;}}
+  var gBpx=gSS.bovin.q>0?Math.round(gSS.bovin.f/gSS.bovin.q):0;var gBsp=gBpx-(PRIX.bovin||0);
+  h+='<tr class="tot"><td>TOTAL</td><td></td><td style="color:var(--b2)">'+FK(gCA)+'</td><td class="rcH" style="color:var(--o2)">'+FK(gCost)+cpg+'</td><td style="color:'+(gMB>=0?'var(--t)':'var(--r2)')+'">'+FK(gMB)+'</td><td>'+F(gMBp,1)+'%</td><td>'+FK(Math.round(gChg))+'</td><td style="color:'+(gMN>=0?'var(--g)':'var(--r2)')+'">'+FK(gMN)+'</td><td>'+F(gMNp,1)+'%</td><td style="font-size:8px">'+(gBpx?'<span style="color:var(--b2)">'+FK(gBpx)+'</span> <span style="color:'+(gBsp>=0?'var(--g)':'var(--r2)')+'">'+FS(gBsp)+'</span>':'\u2014')+'</td></tr>';
   h+='</tbody></table></div>';
 
   /* Day by day across all PdVs */
@@ -2347,14 +2351,11 @@ function sendChat(){
   ];
   for(var h=0;h<chatHistory.length;h++)messages.push(chatHistory[h]);
 
-  var provider=(document.getElementById('chatProvider')||{}).value||'anthropic';
-  var model=provider==='openai'?'gpt-4o-mini':'claude-sonnet-4-20250514';
   fetch('/api/chat',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      provider:provider,
-      model:model,
+      model:'claude-sonnet-4-20250514',
       max_tokens:1000,
       messages:messages
     })
@@ -2382,16 +2383,9 @@ window.sendChat=sendChat;
 <!-- Chat AI Panel -->
 <div id="chatBtn" onclick="toggleChat()" style="position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px #0006;font-size:20px;z-index:300;transition:transform .2s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">&#x1F4AC;</div>
 <div id="chatPanel" style="display:none;position:fixed;bottom:80px;right:20px;width:420px;max-height:520px;background:#0f172a;border:1px solid #334155;border-radius:12px;box-shadow:0 8px 32px #000a;z-index:300;font-family:'Instrument Sans',sans-serif;overflow:hidden;flex-direction:column">
-  <div style="padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center;gap:8px">
-    <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
-      <span style="font-size:14px">&#x1F916;</span>
-      <b style="color:#e2e8f0;font-size:11px">Assistant Mata</b>
-      <select id="chatProvider" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:4px 6px;border-radius:4px;font-size:9px;cursor:pointer">
-        <option value="anthropic" selected>Claude (Anthropic)</option>
-        <option value="openai">GPT (OpenAI)</option>
-      </select>
-    </div>
-    <span onclick="toggleChat()" style="color:#64748b;cursor:pointer;font-size:16px;flex-shrink:0">&times;</span>
+  <div style="padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center">
+    <div><span style="font-size:14px">&#x1F916;</span> <b style="color:#e2e8f0;font-size:11px">Assistant Mata</b> <span style="font-size:8px;color:#64748b">Claude Sonnet</span></div>
+    <span onclick="toggleChat()" style="color:#64748b;cursor:pointer;font-size:16px">&times;</span>
   </div>
   <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:10px 14px;max-height:360px;min-height:200px"></div>
   <div style="padding:8px 10px;border-top:1px solid #334155;display:flex;gap:6px">
