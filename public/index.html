@@ -43,6 +43,7 @@
 .cT[data-c="poisson"].on{background:#0e7490;border-color:#06b6d4}
 .cT[data-c="perf"].on{background:#15803d;border-color:#22c55e}
 .cT[data-c="sim"].on{background:#7e22ce;border-color:#a855f7}
+.cT[data-c="clients"].on{background:#0e7490;border-color:#06b6d4}
 .reclCfg{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left}
 .reclCfg summary{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);cursor:pointer}
 .reclCfg .rr{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:9px}
@@ -143,6 +144,15 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
     </div>
     <div id="achatInfo" style="display:none;margin-top:8px;font-size:9px;color:var(--g2);font-family:'JetBrains Mono',monospace"></div>
   </div>
+  <div style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left">
+    <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);margin-bottom:6px">&#128031; Tableau Ventes (optionnel)</div>
+    <div style="font-size:9px;color:var(--txd);margin-bottom:8px;line-height:1.5">Importer le tableau des ventes pour avoir les vrais prix et quantit&eacute;s de Poisson par produit (corrige le double comptage).</div>
+    <div class="drop" id="drop3" style="padding:16px;border-radius:8px">
+      <div class="lb" style="font-size:10px">Glissez <b>Tableau_Ventes.xlsx</b> ou cliquez</div>
+      <input type="file" id="fi3" accept=".xlsx,.xls">
+    </div>
+    <div id="venteInfo" style="display:none;margin-top:8px;font-size:9px;color:var(--g2);font-family:'JetBrains Mono',monospace"></div>
+  </div>
   <div class="fpGrid">
     <div class="fpCard"><div class="fpLb" style="color:#dc2626">&#129385; Boeuf</div><input class="fpI" data-c="boeuf" type="number" value="5" min="0" max="20" step="0.5"><span class="u">%</span></div>
     <div class="fpCard"><div class="fpLb" style="color:#991b1b">&#128002; Bovin</div><input class="fpI" data-c="bovin" type="number" value="5" min="0" max="20" step="0.5"><span class="u">%</span></div>
@@ -233,7 +243,7 @@ var CHARGES={
 var FRAIS_AB={}; /* frais abattage by date key: {'2026-03-02':20000,...} */
 /* Revenu supplémentaire mensuel par PdV (ajouté au CA, lissé /30j) */
 var REVENU_SUPP={
-  'Mbao':0,'O.Foire':0,'Keur Massar':0,'Abattage':0,'Sacre Coeur':0
+  'Mbao':0,'O.Foire':0,'Keur Massar':0,'Abattage':0,'Sacre Coeur':400000
 };
 function getChargeMonthly(pdv){var c=CHARGES[pdv];if(!c)return 0;return c.sal_com*c.nb_com+c.sal_bou*c.nb_bou+c.loyer+c.elec+c.internet+(c.autres||0);}
 function getChargeDaily(pdv){return getChargeMonthly(pdv)/30;}
@@ -271,8 +281,25 @@ function getSellStats(pdv){
         else if(isAbat){stats.abats.fcfa+=rf;stats.abats.qty+=rq;}
         else{stats.agneau.fcfa+=rf;stats.agneau.qty+=rq;}
       }
-      else if(catLo==='poisson'){stats.poisson.fcfa+=rf;stats.poisson.qty+=rq;}
+      else if(catLo==='poisson'){
+        /* If POISSON_VENTES loaded, skip reconciliation poisson data (we'll use ventes file) */
+        if(POISSON_VENTES)continue;
+        /* If no ventes file, exclude generic "Poisson" product (double-counted in reconciliation) */
+        if(pks[i]==='Poisson')continue;
+        /* Estimate CA from POISSON_CONFIG vente prices since Reconciliation has 0 FCFA */
+        var pcSell=POISSON_CONFIG[pks[i]];
+        var estCA=pcSell?rq*pcSell.vente:rf;
+        stats.poisson.fcfa+=estCA;stats.poisson.qty+=rq;
+      }
       else if(isAbat){stats.abats.fcfa+=rf;stats.abats.qty+=rq;}
+    }
+  }
+  /* If POISSON_VENTES loaded, use it for poisson stats */
+  if(POISSON_VENTES&&POISSON_VENTES[pdv]){
+    var pvp=POISSON_VENTES[pdv],pvpk=Object.keys(pvp);
+    for(var pvi=0;pvi<pvpk.length;pvi++){
+      stats.poisson.fcfa+=pvp[pvpk[pvi]].fcfa;
+      stats.poisson.qty+=pvp[pvpk[pvi]].qty;
     }
   }
   var r={};var ks=Object.keys(stats);
@@ -331,6 +358,23 @@ function calcCostDay(day,pdv){
     }
   }
   var total=detail.bovin.cost+detail.veau.cost+detail.poulet.cost+detail.agneau.cost+detail.poisson.cost;
+  /* Add pack composition cost if PACK_DATA loaded */
+  if(PACK_DATA&&PACK_DATA.pointsVente&&PACK_DATA.pointsVente[pdv]){
+    var pkPdv=PACK_DATA.pointsVente[pdv];
+    var pkTotalCA=pkPdv.montantTotal||1;
+    var pkTotalCost=pkPdv.montantInformatif||0;
+    var pNames2=Object.keys(day.prods||{});
+    for(var pi2=0;pi2<pNames2.length;pi2++){
+      if(pNames2[pi2].indexOf('Pack')!==0)continue;
+      var pkProd=day.prods[pNames2[pi2]];
+      if(!pkProd)continue;
+      var pkCA=pkProd.reelF||0;
+      if(pkCA>0){
+        /* Cost = this pack's CA share × total composition cost */
+        total+=Math.round((pkCA/pkTotalCA)*pkTotalCost);
+      }
+    }
+  }
   return{total:total,detail:detail};
 }
 
@@ -381,6 +425,83 @@ drop2.addEventListener('dragover',function(e){e.preventDefault();drop2.classList
 drop2.addEventListener('dragleave',function(){drop2.classList.remove('over');});
 drop2.addEventListener('drop',function(e){e.preventDefault();drop2.classList.remove('over');if(e.dataTransfer.files[0])loadAchats(e.dataTransfer.files[0]);});
 fi2.addEventListener('change',function(e){if(e.target.files[0])loadAchats(e.target.files[0]);});
+
+/* ══════ VENTES FILE HANDLER ══════ */
+var POISSON_VENTES=null;
+var VENTES_DATA=null; /* {orders:[{id,pdv,date,heure,montant,numClient,nomClient,items}], byClient:{num:{nom,total,nOrders,pdvs}}} */
+var drop3=document.getElementById('drop3'),fi3=document.getElementById('fi3');
+drop3.addEventListener('click',function(){fi3.click();});
+drop3.addEventListener('dragover',function(e){e.preventDefault();drop3.classList.add('over');});
+drop3.addEventListener('dragleave',function(){drop3.classList.remove('over');});
+drop3.addEventListener('drop',function(e){e.preventDefault();drop3.classList.remove('over');if(e.dataTransfer.files[0])loadVentes(e.dataTransfer.files[0]);});
+fi3.addEventListener('change',function(e){if(e.target.files[0])loadVentes(e.target.files[0]);});
+
+function loadVentes(file){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{raw:false,defval:''});
+      POISSON_VENTES={};
+      VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
+      var totalQ=0,totalF=0,nProds={};
+      for(var i=0;i<rows.length;i++){
+        var r=rows[i];
+        var cat=String(r['Cat\u00e9gorie']||'').trim();
+        var pdv=String(r['Point de Vente']||'').trim();
+        var prod=String(r['Produit']||'').trim();
+        var qty=parseFloat(String(r['Quantit\u00e9']||'0').replace(/\s/g,'').replace(',','.'))||0;
+        var montant=parseFloat(String(r['Montant']||'0').replace(/\s/g,'').replace(',','.'))||0;
+        var orderId=String(r['Commande ID']||'').trim();
+        var numClient=String(r['Num\u00e9ro Client']||'').trim();
+        var nomClient=String(r['Nom Client']||'').trim();
+        var heure=String(r['Heure']||'').trim();
+        var dateR=String(r['Date']||'').trim();
+        /* Poisson */
+        if(cat.toLowerCase()==='poisson'&&pdv&&prod&&qty!==0){
+          if(!POISSON_VENTES[pdv])POISSON_VENTES[pdv]={};
+          if(!POISSON_VENTES[pdv][prod])POISSON_VENTES[pdv][prod]={qty:0,fcfa:0};
+          POISSON_VENTES[pdv][prod].qty+=qty;
+          POISSON_VENTES[pdv][prod].fcfa+=montant;
+          totalQ+=qty;totalF+=montant;nProds[prod]=1;
+        }
+        /* Orders */
+        if(orderId){
+          if(!VENTES_DATA.orders[orderId])VENTES_DATA.orders[orderId]={id:orderId,pdv:pdv,date:dateR,heure:heure,montant:0,numClient:numClient,nomClient:nomClient,items:[]};
+          VENTES_DATA.orders[orderId].montant+=montant;
+          VENTES_DATA.orders[orderId].items.push({prod:prod,cat:cat,qty:qty,montant:montant});
+        }
+        /* By client */
+        if(numClient){
+          if(!VENTES_DATA.byClient[numClient])VENTES_DATA.byClient[numClient]={nom:nomClient,total:0,nOrders:0,orderIds:{},pdvs:{}};
+          VENTES_DATA.byClient[numClient].total+=montant;
+          if(nomClient)VENTES_DATA.byClient[numClient].nom=nomClient;
+          VENTES_DATA.byClient[numClient].orderIds[orderId]=1;
+          VENTES_DATA.byClient[numClient].pdvs[pdv]=(VENTES_DATA.byClient[numClient].pdvs[pdv]||0)+montant;
+        }
+        /* By hour */
+        var h0=heure.split(':')[0]||'00';
+        VENTES_DATA.byHour[h0]=(VENTES_DATA.byHour[h0]||0)+1;
+        /* By PdV */
+        if(!VENTES_DATA.byPdv[pdv])VENTES_DATA.byPdv[pdv]={orders:{},lines:0};
+        VENTES_DATA.byPdv[pdv].orders[orderId]=1;
+        VENTES_DATA.byPdv[pdv].lines++;
+      }
+      /* Count unique orders per client */
+      var cks=Object.keys(VENTES_DATA.byClient);
+      for(var ci=0;ci<cks.length;ci++){VENTES_DATA.byClient[cks[ci]].nOrders=Object.keys(VENTES_DATA.byClient[cks[ci]].orderIds).length;}
+      var nOrders=Object.keys(VENTES_DATA.orders).length;
+      var info='\u2705 '+nOrders+' commandes, '+cks.length+' clients, '+Object.keys(nProds).length+' produits poisson';
+      document.getElementById('venteInfo').textContent=info;
+      document.getElementById('venteInfo').style.display='block';
+    }catch(err){
+      document.getElementById('venteInfo').textContent='\u274c Erreur: '+err.message;
+      document.getElementById('venteInfo').style.display='block';
+      document.getElementById('venteInfo').style.color='var(--r2)';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
 
 function loadAchats(file){
   var reader=new FileReader();
@@ -653,6 +774,7 @@ function buildCatTabs(){
   var el=document.getElementById('catTabs'),h='',cks=Object.keys(CATS);
   h+='<div class="cT'+(CAT==='perf'?' on':'')+'" data-c="perf">\ud83d\udcc8 Perf PdV</div>';
   h+='<div class="cT'+(CAT==='sim'?' on':'')+'" data-c="sim">\ud83d\udcca Simulation</div>';
+  h+='<div class="cT'+(CAT==='clients'?' on':'')+'" data-c="clients">\ud83d\udc65 Clients</div>';
   for(var i=0;i<cks.length;i++){var c=CATS[cks[i]];h+='<div class="cT'+(cks[i]===CAT?' on':'')+'" data-c="'+cks[i]+'">'+c.icon+' '+c.label+'</div>';}
   h+='<span id="excBox"></span>';
   el.innerHTML=h;
@@ -683,12 +805,13 @@ function updateExcBox(){
 function buildFpBar(){
   var el=document.getElementById('fpBar'),cks=Object.keys(CATS),h='';
   for(var i=0;i<cks.length;i++){var c=CATS[cks[i]];if(i>0)h+='<div class="sep"></div>';h+='<label style="color:'+c.color+'">'+c.icon+'</label><input type="number" data-c="'+cks[i]+'" value="'+c.fp+'" min="0" max="20" step="0.5" class="fpC"><span class="u">%</span>';}
-  h+='<div class="sep"></div><button id="btnR">&larr;</button><button id="btnExport" style="background:var(--g);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce5 Excel</button><button id="btnPDF" style="background:var(--v);color:#fff;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcc4 PDF Rapport</button>';
+  h+='<div class="sep"></div><button id="btnR">&larr;</button><button id="btnExport" style="background:var(--g);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce5 Excel</button><button id="btnPDF" style="background:var(--v);color:#fff;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcc4 PDF</button><button id="btnPacks" style="background:var(--t);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce6 Packs</button>';
   el.innerHTML=h;
   el.querySelectorAll('.fpC').forEach(function(inp){inp.addEventListener('input',function(){CATS[this.dataset.c].fp=parseFloat(this.value)||0;render();});});
   document.getElementById('btnR').addEventListener('click',function(){document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';});
   document.getElementById('btnExport').addEventListener('click',exportExcel);
   document.getElementById('btnPDF').addEventListener('click',exportPDF);
+  document.getElementById('btnPacks').addEventListener('click',importPacks);
 }
 function render(){
   /* Apply category overrides dynamically */
@@ -713,6 +836,7 @@ function render(){
   try{
     if(CAT==='perf'){if(TAB==='__all__')renderPerfGlobal(ct);else renderPerfPdv(ct,TAB);}
     else if(CAT==='sim'){renderSim(ct);}
+    else if(CAT==='clients'){renderClients(ct,TAB);}
     else if(TAB==='__all__')renderAll(ct,CAT);else renderPdv(ct,TAB,CAT);
   }
   catch(err){ct.innerHTML='<div style="color:var(--r2);padding:16px;font-size:9px;font-family:JetBrains Mono">'+err.message+'<br><pre>'+err.stack+'</pre></div>';}
@@ -1177,7 +1301,9 @@ function renderPerfGlobal(el){
   var gMBp=gCA!==0?(gMB/gCA*100):0,gMNp=gCA!==0?(gMN/gCA*100):0;
 
   h+='<div class="kpis">';
-  h+='<div class="kpi"><div class="lb">CA Total</div><div class="vl" style="color:var(--b2)">'+FK(gCA)+'</div><div class="sb">FCFA</div></div>';
+  var gRStotal=0;for(i=0;i<pdvs.length;i++){var rsv=REVENU_SUPP[pdvs[i]]||0;if(rsv>0){var nDi=DATA[pdvs[i]]?DATA[pdvs[i]].length:0;gRStotal+=Math.round(rsv/30*nDi);}}
+  var gRSbadge=gRStotal>0?' <span style="font-size:7px;background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle" title="Inclut '+FK(gRStotal)+' FCFA de revenu suppl\u00e9mentaire">+RS</span>':'';
+  h+='<div class="kpi"><div class="lb">CA Total'+gRSbadge+'</div><div class="vl" style="color:var(--b2)">'+FK(gCA)+'</div><div class="sb">FCFA</div></div>';
   h+='<div class="kpi"><div class="lb">Co\u00fbt Achat</div><div class="vl" style="color:var(--o2)">'+FK(gCost)+'</div><div class="sb">FCFA</div></div>';
   h+='<div class="kpi"><div class="lb">Marge Brute</div><div class="vl" style="color:'+(gMB>=0?'var(--t)':'var(--r2)')+'">'+FK(gMB)+'</div><div class="sb">'+F(gMBp,1)+'%</div></div>';
   h+='<div class="kpi"><div class="lb">Charges</div><div class="vl" style="color:var(--txd)">'+FK(Math.round(gChg))+'</div><div class="sb">FCFA</div></div>';
@@ -1204,6 +1330,24 @@ function renderPerfGlobal(el){
     if(sck==='agneau_pur')apx=PRIX.agneau||4300;
     if(sck==='laxass')apx=PRIX_PRODUIT['Laxass']||200;
     if(sck==='patte')apx=PRIX_PRODUIT['Patte de mouton']||0;
+    /* Poisson: weighted average from POISSON_CONFIG buy prices */
+    if(sck==='poisson'){
+      var pCostW=0,pQtyW=0;
+      for(var pci2=0;pci2<pdvs.length;pci2++){
+        var daysP=DATA[pdvs[pci2]]||[];
+        for(var dpi=0;dpi<daysP.length;dpi++){
+          if(!daysP[dpi]||!daysP[dpi].prods)continue;
+          var pksP=Object.keys(daysP[dpi].prods||{});
+          for(var kpi=0;kpi<pksP.length;kpi++){
+            var pp=daysP[dpi].prods[pksP[kpi]];
+            if(!pp||String(pp.cat||'').toLowerCase()!=='poisson')continue;
+            var pcfg=POISSON_CONFIG[pksP[kpi]];
+            if(pcfg){var qp=bestV(pp);pCostW+=qp*pcfg.achat;pQtyW+=qp;}
+          }
+        }
+      }
+      apx=pQtyW>0?Math.round(pCostW/pQtyW):PRIX.poisson||3000;
+    }
     var spread=spx-apx,spPct=apx>0?(spread/apx*100):0;
     if(sq>0)h+='<tr><td>'+slb+'</td><td>'+FI(Math.round(sq))+' '+sunit+'</td><td style="color:var(--b2)">'+FK(sf)+'</td><td style="color:var(--b2)">'+FK(spx)+' '+su+'</td><td style="color:var(--o2)">'+(apx>0?FK(apx)+' '+su:'\u2014')+'</td><td style="color:'+(spread>=0?'var(--g)':'var(--r2)')+'">'+FS(spread)+'</td><td style="color:'+(spread>=0?'var(--g)':'var(--r2)')+'">'+(apx>0?F(spPct,1)+'%':'\u2014')+'</td></tr>';
   }
@@ -1300,6 +1444,8 @@ function renderPerfGlobal(el){
   }
   h+='</tbody></table></div></details>';
 
+  h+=renderPackSection(null);
+
   h+='<div class="st">\u2699\ufe0f Charges fixes mensuelles</div>';
   for(i=0;i<pdvs.length;i++){if(CHARGES[pdvs[i]])h+=renderChargesEditor(pdvs[i]);}
 
@@ -1389,6 +1535,11 @@ function renderPerfPdv(el,pdv){
       if(!p3)continue;
       var catLo3=String(p3.cat||'').toLowerCase();
       if(catLo3.indexOf('total')>=0)continue;
+      /* Poisson: skip if POISSON_VENTES loaded (we'll add from ventes), or skip generic "Poisson" */
+      if(catLo3==='poisson'){
+        if(POISSON_VENTES)continue;
+        if(pn3==='Poisson')continue; /* exclude generic double-counted product */
+      }
       var reel3=p3.reel||0,theo3=p3.theo||0,reelF3=p3.reelF||0;
       if(reel3===0&&theo3===0)continue;
       if(!prodMap[pn3])prodMap[pn3]={cat:p3.cat||'',reel:0,theo:0,reelF:0,cost:0};
@@ -1399,6 +1550,8 @@ function renderPerfPdv(el,pdv){
       else if(catLo3==='poisson'){
         var pc3=POISSON_CONFIG[pn3];var bpx=pc3?pc3.achat:(PRIX.poisson||3000);
         prodMap[pn3].cost+=bestV(p3)*bpx;prodMap[pn3].px=bpx;
+        /* Estimate CA from vente price if reelF=0 (Reconciliation has 0 for individual poisson) */
+        if(reelF3===0&&pc3&&reel3>0)prodMap[pn3].reelF+=reel3*pc3.vente;
       }
       else if(catLo3==='bovin'){
         var qc3=theo3||reel3; /* use théo, fallback reel if théo=0 */
@@ -1409,8 +1562,40 @@ function renderPerfPdv(el,pdv){
       else if(catLo3==='ovin'||catLo3==='caprin'){var qc5=theo3||reel3;prodMap[pn3].cost+=qc5*(PRIX.agneau||4300);prodMap[pn3].px=PRIX.agneau||4300;}
     }
   }
-  /* Poisson: CA already included in Excel totals, individual products show 0 */
-  /* No additional CA calculation needed */
+  /* Poisson: add from POISSON_VENTES if loaded */
+  if(POISSON_VENTES&&POISSON_VENTES[pdv]){
+    var pvProd=POISSON_VENTES[pdv],pvKeys=Object.keys(pvProd);
+    for(var pvi2=0;pvi2<pvKeys.length;pvi2++){
+      var pvn=pvKeys[pvi2],pvd=pvProd[pvn];
+      if(!prodMap[pvn])prodMap[pvn]={cat:'Poisson',reel:0,theo:0,reelF:0,cost:0};
+      prodMap[pvn].reel=pvd.qty;prodMap[pvn].reelF=pvd.fcfa;
+      var pcCfg=POISSON_CONFIG[pvn];
+      prodMap[pvn].cost=pvd.qty*(pcCfg?pcCfg.achat:(PRIX.poisson||3000));
+      prodMap[pvn].px=pcCfg?pcCfg.achat:(PRIX.poisson||3000);
+    }
+  }
+  /* Packs: add composition cost to Pack product lines */
+  if(PACK_DATA&&PACK_DATA.pointsVente&&PACK_DATA.pointsVente[pdv]){
+    var pkPdv=PACK_DATA.pointsVente[pdv];
+    var pkTypes=pkPdv.packsVendus||{};
+    /* Build cost per pack type from composition: total cost ÷ total packs × qty of this type */
+    var pkTotalPacks=pkPdv.totalPacks||1;
+    var pkTotalCost=pkPdv.montantInformatif||0;
+    var pkKeys=Object.keys(pkTypes);
+    for(var pki=0;pki<pkKeys.length;pki++){
+      var pkName=pkKeys[pki];
+      var pkData=pkTypes[pkName];
+      /* Match Pack name in prodMap (e.g. "Pack25000" from Excel) */
+      if(prodMap[pkName]){
+        /* Cost for this pack type = (montantTotal / total CA) × total composition cost */
+        var pkShare=pkPdv.montantTotal>0?(pkData.montantTotal/pkPdv.montantTotal):0;
+        var pkCost=Math.round(pkShare*pkTotalCost);
+        prodMap[pkName].cost=pkCost;
+        prodMap[pkName].px=pkData.quantite>0?Math.round(pkCost/pkData.quantite):0;
+        prodMap[pkName].packCost=pkCost;
+      }
+    }
+  }
   /* Decompose Veau into natif vs reclassif */
   var veauEntry=prodMap['Veau'];
   var hasVeauReclass=false;
@@ -1480,6 +1665,8 @@ function renderPerfPdv(el,pdv){
     h+='<div class="note" style="margin-top:6px;border-left-color:var(--v)"><b style="color:var(--v2)">Veau reclassifi\u00e9</b> : '+F(vRecl)+' kg de boeuf vendus sous l\u2019appellation Veau (exc\u00e9dent au-del\u00e0 du stock natif de '+F(vNatif)+' kg). Le co\u00fbt est calcul\u00e9 au prix d\u2019achat <b>boeuf</b> ('+FK(PRIX.bovin)+' F/kg) car la b\u00eate est un boeuf, mais vendu au prix du veau ('+FK(vPxVente)+' F/kg) \u2192 spread <span style="color:'+(vPxVente-(PRIX.bovin||0)>=0?'var(--g)':'var(--r2)')+'">'+FS(vPxVente-(PRIX.bovin||0))+' F/kg</span>.</div>';
   }
   h+='</details>';
+
+  h+=renderPackSection(pdv);
 
   h+='<details class="perfChg"><summary>\ud83d\udcb0 Revenu suppl\u00e9mentaire '+pdv+' \u2014 '+FK(REVENU_SUPP[pdv]||0)+' FCFA/mois ('+(pvHasRS?FK(Math.round((REVENU_SUPP[pdv]||0)/30))+'/j':'0')+' )</summary><div class="cg" style="margin-top:6px"><div class="ci"><span>Montant mensuel</span><input class="rsI" data-pdv="'+pdv+'" value="'+(REVENU_SUPP[pdv]||0)+'" type="number" min="0" step="10000"></div></div></details>';
 
@@ -1649,6 +1836,214 @@ function renderSim(el){
       render();
     });
   });
+}
+
+/*══════ CLIENTS ══════*/
+function renderClients(el,tab){
+  if(!VENTES_DATA){el.innerHTML='<div class="note" style="border-left-color:var(--o)">Importer le <b>Tableau Ventes</b> (3\u00e8me fichier) pour activer l\u2019analyse clients.</div>';return;}
+  var filterPdv=(tab!=='__all__')?tab:null;
+  var h='<div class="st">\ud83d\udc65 Analyse Clients'+(filterPdv?' \u2014 '+filterPdv:'')+'</div>';
+
+  /* Build order list */
+  var orderKeys=Object.keys(VENTES_DATA.orders);
+  var orders=[];
+  for(var i=0;i<orderKeys.length;i++){
+    var o=VENTES_DATA.orders[orderKeys[i]];
+    if(filterPdv&&o.pdv!==filterPdv)continue;
+    orders.push(o);
+  }
+
+  /* Panier moyen */
+  var totals=orders.map(function(o){return o.montant;});
+  var n=totals.length;
+  if(n===0){el.innerHTML=h+'<div class="note">Aucune commande'+(filterPdv?' pour '+filterPdv:'')+'.</div>';return;}
+  var sum=0;for(i=0;i<n;i++)sum+=totals[i];
+  var mean=sum/n;
+  var variance=0;for(i=0;i<n;i++)variance+=Math.pow(totals[i]-mean,2);
+  var std=Math.sqrt(variance/n);
+  /* Filtered ±2σ */
+  var filt=[];for(i=0;i<n;i++){if(totals[i]>=mean-2*std&&totals[i]<=mean+2*std)filt.push(totals[i]);}
+  var fSum=0;for(i=0;i<filt.length;i++)fSum+=filt[i];
+  var fMean=filt.length>0?fSum/filt.length:0;
+  /* Median */
+  var sorted=totals.slice().sort(function(a,b){return a-b;});
+  var median=n%2===1?sorted[Math.floor(n/2)]:(sorted[n/2-1]+sorted[n/2])/2;
+  /* Max/Min */
+  var maxO=sorted[n-1],minO=sorted[0];
+
+  /* KPIs */
+  h+='<div class="kpis">';
+  h+='<div class="kpi"><div class="lb">Commandes</div><div class="vl" style="color:var(--b2)">'+FI(n)+'</div></div>';
+  h+='<div class="kpi"><div class="lb">CA Total</div><div class="vl" style="color:var(--b2)">'+FK(sum)+'</div></div>';
+  h+='<div class="kpi"><div class="lb">Panier moyen</div><div class="vl" style="color:var(--t)">'+FK(Math.round(mean))+'</div><div class="sb">\u03c3='+FK(Math.round(std))+'</div></div>';
+  h+='<div class="kpi"><div class="lb">Panier (\u00b12\u03c3)</div><div class="vl" style="color:var(--g)">'+FK(Math.round(fMean))+'</div><div class="sb">'+filt.length+'/'+n+' commandes</div></div>';
+  h+='<div class="kpi"><div class="lb">M\u00e9diane</div><div class="vl" style="color:var(--v2)">'+FK(Math.round(median))+'</div></div>';
+  h+='</div>';
+
+  /* Distribution paniers */
+  var buckets=[0,2000,5000,10000,15000,25000,50000,100000,Infinity];
+  var bLabels=['0-2K','2-5K','5-10K','10-15K','15-25K','25-50K','50-100K','100K+'];
+  var bCounts=[];for(i=0;i<bLabels.length;i++)bCounts.push(0);
+  for(i=0;i<n;i++){for(var b=0;b<buckets.length-1;b++){if(totals[i]>=buckets[b]&&totals[i]<buckets[b+1]){bCounts[b]++;break;}}}
+  var bMax=Math.max.apply(null,bCounts)||1;
+  h+='<details class="perfChg" open><summary>\ud83d\udcca Distribution des paniers</summary><div style="margin-top:8px">';
+  for(i=0;i<bLabels.length;i++){
+    var pct=n>0?(bCounts[i]/n*100):0;
+    var barW=Math.round(bCounts[i]/bMax*100);
+    h+='<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:9px"><span style="min-width:55px;text-align:right;color:var(--txd)">'+bLabels[i]+'</span><div style="flex:1;height:16px;background:var(--s2);border-radius:3px;overflow:hidden"><div style="width:'+barW+'%;height:100%;background:linear-gradient(90deg,#7c3aed,#2563eb);border-radius:3px"></div></div><span style="min-width:70px;font-family:JetBrains Mono;font-size:8px;color:var(--tx)">'+bCounts[i]+' ('+F(pct,1)+'%)</span></div>';
+  }
+  h+='</div></details>';
+
+  /* Heures d'affluence */
+  var hourData={};
+  for(i=0;i<orders.length;i++){var hh=(orders[i].heure||'00').split(':')[0];hourData[hh]=(hourData[hh]||0)+1;}
+  var hKeys=Object.keys(hourData).sort();
+  var hMax=0;for(i=0;i<hKeys.length;i++){if(hourData[hKeys[i]]>hMax)hMax=hourData[hKeys[i]];}
+  h+='<details class="perfChg" open><summary>\u23f0 Heures d\u2019affluence</summary><div style="margin-top:8px">';
+  for(i=0;i<hKeys.length;i++){
+    var hv=hourData[hKeys[i]],hp=n>0?(hv/n*100):0;
+    var hBar=Math.round(hv/(hMax||1)*100);
+    h+='<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:9px"><span style="min-width:30px;text-align:right;color:var(--txd)">'+hKeys[i]+'h</span><div style="flex:1;height:16px;background:var(--s2);border-radius:3px;overflow:hidden"><div style="width:'+hBar+'%;height:100%;background:linear-gradient(90deg,#22c55e,#06b6d4);border-radius:3px"></div></div><span style="min-width:80px;font-family:JetBrains Mono;font-size:8px;color:var(--tx)">'+hv+' cmd ('+F(hp,1)+'%)</span></div>';
+  }
+  h+='</div></details>';
+
+  /* Top clients */
+  var clientKeys=Object.keys(VENTES_DATA.byClient);
+  var clientArr=[];
+  for(i=0;i<clientKeys.length;i++){
+    var ck=clientKeys[i],cd=VENTES_DATA.byClient[ck];
+    if(!ck||ck==='NaN'||ck==='undefined'||ck==='')continue;
+    /* Filter by PdV if needed */
+    if(filterPdv){
+      var pvTotal=cd.pdvs[filterPdv]||0;
+      if(pvTotal===0)continue;
+      clientArr.push({num:ck,nom:cd.nom,total:pvTotal,nOrders:cd.nOrders,pdv:filterPdv});
+    } else {
+      var topPdv='';var topPdvV=0;var pvks=Object.keys(cd.pdvs);
+      for(var pi2=0;pi2<pvks.length;pi2++){if(cd.pdvs[pvks[pi2]]>topPdvV){topPdvV=cd.pdvs[pvks[pi2]];topPdv=pvks[pi2];}}
+      clientArr.push({num:ck,nom:cd.nom,total:cd.total,nOrders:cd.nOrders,pdv:topPdv});
+    }
+  }
+  clientArr.sort(function(a,b){return b.total-a.total;});
+
+  h+='<details class="perfChg" open><summary>\ud83c\udfc6 Top 20 clients'+(filterPdv?' \u2014 '+filterPdv:'')+'</summary>';
+  h+='<div class="tw" style="margin-top:8px"><table><thead><tr><th style="text-align:center">#</th><th style="text-align:left">Client</th><th style="text-align:left">T\u00e9l.</th><th>PdV principal</th><th>Commandes</th><th>Total FCFA</th><th>Panier moy.</th></tr></thead><tbody>';
+  var top=Math.min(20,clientArr.length);
+  for(i=0;i<top;i++){
+    var c=clientArr[i];
+    var medals=['\ud83e\udd47','\ud83e\udd48','\ud83e\udd49'];
+    var md=i<3?'<span style="font-size:12px">'+medals[i]+'</span>':''+(i+1);
+    var pm=c.nOrders>0?Math.round(c.total/c.nOrders):0;
+    h+='<tr><td style="text-align:center">'+md+'</td><td style="font-weight:600">'+(c.nom||'\u2014')+'</td><td style="color:var(--txd);font-size:8px">'+c.num+'</td><td style="font-size:8px">'+c.pdv+'</td><td>'+c.nOrders+'</td><td style="color:var(--b2);font-weight:700">'+FK(Math.round(c.total))+'</td><td style="color:var(--t)">'+FK(pm)+'</td></tr>';
+  }
+  h+='</tbody></table></div></details>';
+
+  /* Panier moyen par PdV */
+  if(!filterPdv){
+    h+='<details class="perfChg" open><summary>\ud83c\udfd7\ufe0f Panier moyen par PdV</summary>';
+    h+='<div class="tw" style="margin-top:8px"><table><thead><tr><th style="text-align:left">PdV</th><th>Commandes</th><th>CA</th><th>Panier moyen</th><th>Panier (\u00b12\u03c3)</th></tr></thead><tbody>';
+    var pdvNames=Object.keys(VENTES_DATA.byPdv);
+    for(i=0;i<pdvNames.length;i++){
+      var pn=pdvNames[i],pvOrders=[];
+      for(var oi=0;oi<orderKeys.length;oi++){var oo=VENTES_DATA.orders[orderKeys[oi]];if(oo.pdv===pn)pvOrders.push(oo.montant);}
+      if(!pvOrders.length)continue;
+      var pvN=pvOrders.length,pvSum=0;for(var si=0;si<pvN;si++)pvSum+=pvOrders[si];
+      var pvMean=pvSum/pvN;
+      var pvVar=0;for(si=0;si<pvN;si++)pvVar+=Math.pow(pvOrders[si]-pvMean,2);
+      var pvStd=Math.sqrt(pvVar/pvN);
+      var pvF=[];for(si=0;si<pvN;si++){if(pvOrders[si]>=pvMean-2*pvStd&&pvOrders[si]<=pvMean+2*pvStd)pvF.push(pvOrders[si]);}
+      var pvFSum=0;for(si=0;si<pvF.length;si++)pvFSum+=pvF[si];
+      var pvFMean=pvF.length>0?pvFSum/pvF.length:0;
+      h+='<tr><td style="font-weight:600">'+pn+'</td><td>'+pvN+'</td><td style="color:var(--b2)">'+FK(pvSum)+'</td><td style="color:var(--t)">'+FK(Math.round(pvMean))+'</td><td style="color:var(--g)">'+FK(Math.round(pvFMean))+'</td></tr>';
+    }
+    h+='</tbody></table></div></details>';
+  }
+
+  el.innerHTML=h;
+}
+
+/*══════ PACKS ══════*/
+var PACK_DATA=null;
+
+function importPacks(){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.addEventListener('change',function(){
+    if(!inp.files[0])return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        PACK_DATA=JSON.parse(e.target.result);
+        log('Packs loaded: '+PACK_DATA.globalAgregation.totalPacksVendus+' packs');
+        render();
+      }catch(err){alert('Erreur JSON: '+err.message);}
+    };
+    reader.readAsText(inp.files[0]);
+  });
+  inp.click();
+}
+
+function renderPackSection(pdv){
+  if(!PACK_DATA)return'';
+  var h='<details class="perfChg" open><summary>\ud83d\udce6 Analyse Packs</summary>';
+  if(pdv){
+    /* PdV view */
+    var pv=PACK_DATA.pointsVente[pdv];
+    if(!pv){h+='<div style="padding:8px;font-size:9px;color:var(--txd)">Aucun pack vendu sur ce PdV.</div></details>';return h;}
+    h+='<div class="kpis" style="margin:10px 0">';
+    h+='<div class="kpi"><div class="lb">Packs vendus</div><div class="vl" style="color:var(--t)">'+pv.totalPacks+'</div></div>';
+    h+='<div class="kpi"><div class="lb">CA Packs</div><div class="vl" style="color:var(--b2)">'+FK(pv.montantTotal)+'</div></div>';
+    h+='<div class="kpi"><div class="lb">Co\u00fbt compo.</div><div class="vl" style="color:var(--o2)">'+FK(pv.montantInformatif)+'</div></div>';
+    h+='<div class="kpi"><div class="lb">Marge Pack</div><div class="vl" style="color:'+(pv.margeAbsolue>=0?'var(--g)':'var(--r2)')+'">'+FK(pv.margeAbsolue)+'</div><div class="sb">'+pv.margePourcentage+'%</div></div>';
+    h+='</div>';
+    /* Pack types */
+    h+='<div class="tw"><table><thead><tr><th style="text-align:left">Type Pack</th><th>Qty</th><th>CA</th></tr></thead><tbody>';
+    var pvk=Object.keys(pv.packsVendus||{}).sort();
+    for(var i=0;i<pvk.length;i++){var pk=pv.packsVendus[pvk[i]];h+='<tr><td>'+pvk[i]+'</td><td>'+pk.quantite+'</td><td style="color:var(--b2)">'+FK(pk.montantTotal)+'</td></tr>';}
+    h+='</tbody></table></div>';
+    /* Composition */
+    h+='<div class="tw"><table><thead><tr><th style="text-align:left">Produit</th><th>Qty</th><th>Prix unit.</th><th>Montant</th><th>%</th></tr></thead><tbody>';
+    var ck=Object.keys(pv.compositionAgregee||{});
+    for(i=0;i<ck.length;i++){
+      var c=pv.compositionAgregee[ck[i]];
+      h+='<tr><td>'+ck[i]+'</td><td>'+c.quantite+' '+c.unite+'</td><td style="color:var(--o2)">'+FK(c.prixUnitaire)+'</td><td style="color:var(--o2)">'+FK(c.montantInformatif)+'</td><td>'+c.contributionPourcentage+'%</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  } else {
+    /* Global view */
+    var g=PACK_DATA.globalAgregation;
+    h+='<div class="kpis" style="margin:10px 0">';
+    h+='<div class="kpi"><div class="lb">Total Packs</div><div class="vl" style="color:var(--t)">'+g.totalPacksVendus+'</div></div>';
+    h+='<div class="kpi"><div class="lb">CA Packs</div><div class="vl" style="color:var(--b2)">'+FK(g.montantTotalPacks)+'</div></div>';
+    h+='<div class="kpi"><div class="lb">Co\u00fbt compo.</div><div class="vl" style="color:var(--o2)">'+FK(g.montantInformatif)+'</div></div>';
+    h+='<div class="kpi"><div class="lb">Marge Pack</div><div class="vl" style="color:'+(g.margeAbsolue>=0?'var(--g)':'var(--r2)')+'">'+FK(g.margeAbsolue)+'</div><div class="sb">'+g.margePourcentage+'%</div></div>';
+    h+='</div>';
+    /* Per PdV table */
+    h+='<div class="tw"><table><thead><tr><th style="text-align:left">PdV</th><th>Packs</th><th>CA</th><th>Co\u00fbt</th><th>Marge</th><th>%</th></tr></thead><tbody>';
+    var pvNames=Object.keys(PACK_DATA.pointsVente||{});
+    for(var pi=0;pi<pvNames.length;pi++){
+      var pvi=PACK_DATA.pointsVente[pvNames[pi]];
+      var cM=pvi.margeAbsolue>=0?'var(--g)':'var(--r2)';
+      h+='<tr><td style="font-weight:600">'+pvNames[pi]+'</td><td>'+pvi.totalPacks+'</td><td style="color:var(--b2)">'+FK(pvi.montantTotal)+'</td><td style="color:var(--o2)">'+FK(pvi.montantInformatif)+'</td><td style="color:'+cM+'">'+FK(pvi.margeAbsolue)+'</td><td style="color:'+cM+'">'+pvi.margePourcentage+'%</td></tr>';
+    }
+    h+='<tr class="tot"><td>TOTAL</td><td>'+g.totalPacksVendus+'</td><td style="color:var(--b2)">'+FK(g.montantTotalPacks)+'</td><td style="color:var(--o2)">'+FK(g.montantInformatif)+'</td><td style="color:'+(g.margeAbsolue>=0?'var(--g)':'var(--r2)')+'">'+FK(g.margeAbsolue)+'</td><td>'+g.margePourcentage+'%</td></tr>';
+    h+='</tbody></table></div>';
+    /* Répartition par type */
+    h+='<div class="tw"><table><thead><tr><th style="text-align:left">Type Pack</th><th>Qty</th></tr></thead><tbody>';
+    var rk=Object.keys(g.repartitionParType||{}).sort();
+    for(i=0;i<rk.length;i++){h+='<tr><td>'+rk[i]+'</td><td>'+g.repartitionParType[rk[i]]+'</td></tr>';}
+    h+='</tbody></table></div>';
+    /* Composition totale */
+    h+='<div class="tw"><table><thead><tr><th style="text-align:left">Produit</th><th>Qty</th><th>Prix unit.</th><th>Montant</th><th>%</th></tr></thead><tbody>';
+    var ctk=Object.keys(g.compositionTotale||{});
+    for(i=0;i<ctk.length;i++){
+      var ct=g.compositionTotale[ctk[i]];
+      h+='<tr><td>'+ctk[i]+'</td><td>'+ct.quantite+' '+ct.unite+'</td><td style="color:var(--o2)">'+FK(ct.prixUnitaire)+'</td><td style="color:var(--o2)">'+FK(ct.montantInformatif)+'</td><td>'+ct.contributionPourcentage+'%</td></tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+  h+='</details>';
+  return h;
 }
 
 /*══════ EXPORT EXCEL ══════*/
@@ -1952,11 +2347,14 @@ function sendChat(){
   ];
   for(var h=0;h<chatHistory.length;h++)messages.push(chatHistory[h]);
 
+  var provider=(document.getElementById('chatProvider')||{}).value||'anthropic';
+  var model=provider==='openai'?'gpt-4o-mini':'claude-sonnet-4-20250514';
   fetch('/api/chat',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
+      provider:provider,
+      model:model,
       max_tokens:1000,
       messages:messages
     })
@@ -1984,9 +2382,16 @@ window.sendChat=sendChat;
 <!-- Chat AI Panel -->
 <div id="chatBtn" onclick="toggleChat()" style="position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px #0006;font-size:20px;z-index:300;transition:transform .2s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">&#x1F4AC;</div>
 <div id="chatPanel" style="display:none;position:fixed;bottom:80px;right:20px;width:420px;max-height:520px;background:#0f172a;border:1px solid #334155;border-radius:12px;box-shadow:0 8px 32px #000a;z-index:300;font-family:'Instrument Sans',sans-serif;overflow:hidden;flex-direction:column">
-  <div style="padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center">
-    <div><span style="font-size:14px">&#x1F916;</span> <b style="color:#e2e8f0;font-size:11px">Assistant Mata</b> <span style="font-size:8px;color:#64748b">Claude Sonnet</span></div>
-    <span onclick="toggleChat()" style="color:#64748b;cursor:pointer;font-size:16px">&times;</span>
+  <div style="padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+      <span style="font-size:14px">&#x1F916;</span>
+      <b style="color:#e2e8f0;font-size:11px">Assistant Mata</b>
+      <select id="chatProvider" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:4px 6px;border-radius:4px;font-size:9px;cursor:pointer">
+        <option value="anthropic" selected>Claude (Anthropic)</option>
+        <option value="openai">GPT (OpenAI)</option>
+      </select>
+    </div>
+    <span onclick="toggleChat()" style="color:#64748b;cursor:pointer;font-size:16px;flex-shrink:0">&times;</span>
   </div>
   <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:10px 14px;max-height:360px;min-height:200px"></div>
   <div style="padding:8px 10px;border-top:1px solid #334155;display:flex;gap:6px">
