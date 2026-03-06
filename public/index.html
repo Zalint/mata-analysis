@@ -113,6 +113,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 <div id="UZ">
   <h1>Mata &middot; <em>Analysis</em></h1>
   <a href="/reconciliation_matix_mata_bictorys.html" style="font-size:10px;color:var(--b2);text-decoration:none;margin-left:8px">R&eacute;conciliation Matrix</a>
+  <a href="/auth/logout" style="font-size:10px;color:var(--tx3);text-decoration:none;margin-left:12px">Se d&eacute;connecter</a>
   <p style="max-width:520px;margin:0 auto 24px;line-height:1.7;font-size:11px">
     Outil d&rsquo;analyse op&eacute;rationnelle multi-cat&eacute;gorie pour les points de vente MATA.
   </p>
@@ -176,7 +177,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="D">
   <div class="hd">
-    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a></div>
+    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a></div>
     <div class="ctrl" id="fpBar"></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -319,6 +320,9 @@ function getSellStats(pdv){
 /* Simulation config */
 var SIM_DELTA={bovin:0,veau:0,abats:0,poulet:0,agneau:0,poisson:0};
 var RANK_EXCLUDE={'Abattage':true};
+var MAAS_CLIENTS={}; /* {'786071818':true} */
+var MAAS_RATE=0.025;
+var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 
 /* Abats product names (for Abattage PdV only) */
 var ABATS_PRODS=['Abats','Foie','Yell'];
@@ -1969,16 +1973,23 @@ function renderClients(el,tab){
   clientArr.sort(function(a,b){return b.total-a.total;});
 
   h+='<details class="perfChg" open><summary>\ud83c\udfc6 Top 20 clients'+(filterPdv?' \u2014 '+filterPdv:'')+'</summary>';
-  h+='<div class="tw" style="margin-top:8px"><table><thead><tr><th style="text-align:center">#</th><th style="text-align:left">Client</th><th style="text-align:left">T\u00e9l.</th><th>PdV principal</th><th>Commandes</th><th>Total FCFA</th><th>Panier moy.</th></tr></thead><tbody>';
+  h+='<div class="tw" style="margin-top:8px"><table><thead><tr><th style="text-align:center">#</th><th style="text-align:left">Client</th><th style="text-align:left">T\u00e9l.</th><th>PdV</th><th>Cmd</th><th>Total FCFA</th><th>Panier moy.</th><th style="text-align:center">MaaS</th></tr></thead><tbody>';
   var top=Math.min(20,clientArr.length);
   for(i=0;i<top;i++){
     var c=clientArr[i];
     var medals=['\ud83e\udd47','\ud83e\udd48','\ud83e\udd49'];
     var md=i<3?'<span style="font-size:12px">'+medals[i]+'</span>':''+(i+1);
     var pm=c.nOrders>0?Math.round(c.total/c.nOrders):0;
-    h+='<tr><td style="text-align:center">'+md+'</td><td style="font-weight:600">'+(c.nom||'\u2014')+'</td><td style="color:var(--txd);font-size:8px">'+c.num+'</td><td style="font-size:8px">'+c.pdv+'</td><td>'+c.nOrders+'</td><td style="color:var(--b2);font-weight:700">'+FK(Math.round(c.total))+'</td><td style="color:var(--t)">'+FK(pm)+'</td></tr>';
+    var isMaaS=MAAS_CLIENTS[c.num]?'checked':'';
+    h+='<tr><td style="text-align:center">'+md+'</td><td style="font-weight:600">'+(c.nom||'\u2014')+'</td><td style="color:var(--txd);font-size:8px">'+c.num+'</td><td style="font-size:8px">'+c.pdv+'</td><td>'+c.nOrders+'</td><td style="color:var(--b2);font-weight:700">'+FK(Math.round(c.total))+'</td><td style="color:var(--t)">'+FK(pm)+'</td><td style="text-align:center"><input type="checkbox" class="maasChk" data-num="'+c.num+'" '+isMaaS+' style="accent-color:#7c3aed"></td></tr>';
   }
-  h+='</tbody></table></div></details>';
+  h+='</tbody></table></div>';
+  /* Render MaaS sections for checked clients */
+  for(i=0;i<top;i++){
+    var c2=clientArr[i];
+    if(MAAS_CLIENTS[c2.num])h+=renderMaaS(c2.num,c2.nom);
+  }
+  h+='</details>';
 
   /* Panier moyen par PdV */
   if(!filterPdv){
@@ -2002,6 +2013,141 @@ function renderClients(el,tab){
   }
 
   el.innerHTML=h;
+  document.querySelectorAll('.maasChk').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      if(this.checked)MAAS_CLIENTS[this.dataset.num]=true;
+      else delete MAAS_CLIENTS[this.dataset.num];
+      render();
+    });
+  });
+  document.querySelectorAll('.maasPx').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      var num=this.dataset.num,dt=this.dataset.date,prod=this.dataset.prod;
+      if(!MAAS_PRIX_OVERRIDE[num])MAAS_PRIX_OVERRIDE[num]={};
+      if(!MAAS_PRIX_OVERRIDE[num][dt])MAAS_PRIX_OVERRIDE[num][dt]={};
+      MAAS_PRIX_OVERRIDE[num][dt][prod]=parseFloat(this.value)||0;
+      render();
+    });
+  });
+  document.querySelectorAll('.maasRate').forEach(function(inp){
+    inp.addEventListener('change',function(){MAAS_RATE=parseFloat(this.value)/100||0.025;render();});
+  });
+}
+
+/*══════ MAAS DETAIL ══════*/
+function renderMaaS(num,nom){
+  if(!VENTES_DATA||!VENTES_DATA.orders)return'';
+  /* Collect all orders for this client */
+  var oKeys=Object.keys(VENTES_DATA.orders);
+  var byDate={};
+  for(var i=0;i<oKeys.length;i++){
+    var o=VENTES_DATA.orders[oKeys[i]];
+    if(String(o.numClient)!==String(num))continue;
+    var dt=String(o.date).slice(0,10);
+    if(!byDate[dt])byDate[dt]={items:{}};
+    for(var j=0;j<o.items.length;j++){
+      var it=o.items[j];
+      /* Normalize product name to base */
+      var base=it.prod.replace(/ en d\u00e9tail/,'').replace(/ en gros/,'');
+      if(!byDate[dt].items[base])byDate[dt].items[base]={qty:0,cat:it.cat};
+      byDate[dt].items[base].qty+=it.qty;
+    }
+  }
+  var dates=Object.keys(byDate).sort();
+  if(!dates.length)return'';
+  /* Get all unique products */
+  var allProds={};
+  for(i=0;i<dates.length;i++){var ik=Object.keys(byDate[dates[i]].items);for(j=0;j<ik.length;j++)allProds[ik[j]]=byDate[dates[i]].items[ik[j]].cat;}
+  var prodList=Object.keys(allProds).sort(function(a,b){return(allProds[a]||'').localeCompare(allProds[b]||'');});
+  /* Compute ref prices: prioritize O.Foire détail, then client PdV, then max */
+  /* Find client's main PdV */
+  var clientPdv='';
+  for(i=0;i<oKeys.length;i++){var oc=VENTES_DATA.orders[oKeys[i]];if(String(oc.numClient)===String(num)){clientPdv=oc.pdv;break;}}
+  /* Build price index: {date:{prod:{ofoire:px, clientPdv:px, max:px}}} */
+  var pxIdx={};
+  for(i=0;i<oKeys.length;i++){
+    var o2=VENTES_DATA.orders[oKeys[i]];
+    var dt2=String(o2.date).slice(0,10);
+    if(!pxIdx[dt2])pxIdx[dt2]={};
+    for(j=0;j<o2.items.length;j++){
+      var it2=o2.items[j];
+      if(it2.qty<=0||it2.prod.indexOf('gros')>=0)continue;
+      var base2=it2.prod.replace(/ en d\u00e9tail/,'');
+      var px2=Math.round(it2.montant/it2.qty);
+      if(!pxIdx[dt2][base2])pxIdx[dt2][base2]={ofoire:0,client:0,max:0};
+      if(o2.pdv==='O.Foire'&&px2>pxIdx[dt2][base2].ofoire)pxIdx[dt2][base2].ofoire=px2;
+      if(o2.pdv===clientPdv&&px2>pxIdx[dt2][base2].client)pxIdx[dt2][base2].client=px2;
+      if(px2>pxIdx[dt2][base2].max)pxIdx[dt2][base2].max=px2;
+    }
+  }
+  /* Resolve: O.Foire first, then clientPdv, then max */
+  var refPrix={};
+  var dtKeys=Object.keys(pxIdx);
+  for(i=0;i<dtKeys.length;i++){
+    refPrix[dtKeys[i]]={};
+    var prods2=Object.keys(pxIdx[dtKeys[i]]);
+    for(j=0;j<prods2.length;j++){
+      var px3=pxIdx[dtKeys[i]][prods2[j]];
+      refPrix[dtKeys[i]][prods2[j]]=px3.ofoire||px3.client||px3.max;
+    }
+  }
+  /* Build table */
+  var h='<details class="perfChg" open style="margin-top:10px;border-left:3px solid #7c3aed"><summary style="color:#a78bfa">\ud83e\udd1d MaaS \u2014 '+(nom||num)+'</summary>';
+  h+='<div style="margin:8px 0;display:flex;align-items:center;gap:10px"><span style="font-size:9px;color:var(--txd)">Taux commission:</span><input class="maasRate" value="'+(MAAS_RATE*100).toFixed(1)+'" type="number" min="0" max="100" step="0.5" style="width:55px;background:var(--s2);border:1px solid #7c3aed;color:#a78bfa;padding:3px 6px;border-radius:4px;font-size:10px;text-align:right;font-family:JetBrains Mono"><span style="font-size:9px;color:var(--txd)">%</span></div>';
+  h+='<div class="tw sc" style="margin-top:6px"><table><thead><tr><th style="text-align:left">Date</th>';
+  for(i=0;i<prodList.length;i++){h+='<th colspan="2" style="text-align:center;border-left:1px solid var(--bd);font-size:8px">'+prodList[i]+'</th>';}
+  h+='<th style="color:var(--v2)">CA recalc.</th></tr>';
+  h+='<tr><th></th>';
+  for(i=0;i<prodList.length;i++){h+='<th style="font-size:7px;color:var(--txd);border-left:1px solid var(--bd)">Qty</th><th style="font-size:7px;color:var(--b2)">Px r\u00e9f.</th>';}
+  h+='<th></th></tr></thead><tbody>';
+  var grandTotal=0;
+  var prodTotals={};for(i=0;i<prodList.length;i++)prodTotals[prodList[i]]={qty:0,ca:0};
+  for(var di=0;di<dates.length;di++){
+    var dt3=dates[di];
+    var dayItems=byDate[dt3].items;
+    var dayCA=0;
+    h+='<tr><td style="font-size:9px">'+dt3.slice(5).replace('-','/')+'</td>';
+    for(i=0;i<prodList.length;i++){
+      var pn=prodList[i];
+      var qty=dayItems[pn]?dayItems[pn].qty:0;
+      /* Get ref price: override > computed max */
+      var ov=MAAS_PRIX_OVERRIDE[num]&&MAAS_PRIX_OVERRIDE[num][dt3]&&MAAS_PRIX_OVERRIDE[num][dt3][pn];
+      var rpx=ov!==undefined?ov:(refPrix[dt3]&&refPrix[dt3][pn]?refPrix[dt3][pn]:0);
+      var isOv=ov!==undefined;
+      var ca=qty*rpx;
+      dayCA+=ca;
+      if(qty>0){
+        prodTotals[pn].qty+=qty;prodTotals[pn].ca+=ca;
+        h+='<td style="font-size:9px;border-left:1px solid var(--bd)">'+F(qty)+'</td>';
+        h+='<td style="border-left:none"><input class="maasPx" data-num="'+num+'" data-date="'+dt3+'" data-prod="'+pn+'" value="'+rpx+'" type="number" min="0" step="50" style="width:50px;background:'+(isOv?'#1a1035':'var(--s2)')+';border:1px solid '+(isOv?'#7c3aed':'var(--bd)')+';color:var(--b2);font-family:JetBrains Mono;font-size:9px;padding:1px 3px;border-radius:3px;text-align:right"></td>';
+      } else {
+        h+='<td style="font-size:9px;color:var(--tx3);border-left:1px solid var(--bd)">\u2014</td><td></td>';
+      }
+    }
+    grandTotal+=dayCA;
+    h+='<td style="color:var(--v2);font-weight:600;font-family:JetBrains Mono;font-size:9px">'+FK(Math.round(dayCA))+'</td></tr>';
+  }
+  /* Totals row */
+  h+='<tr class="tot"><td>TOTAL</td>';
+  for(i=0;i<prodList.length;i++){
+    var pt=prodTotals[prodList[i]];
+    h+='<td style="border-left:1px solid var(--bd)">'+F(pt.qty)+'</td><td style="color:var(--b2)">'+(pt.qty>0?FK(Math.round(pt.ca/pt.qty)):'')+'</td>';
+  }
+  h+='<td style="color:var(--v2);font-weight:700">'+FK(Math.round(grandTotal))+'</td></tr>';
+  h+='</tbody></table></div>';
+  /* Commission */
+  var commission=Math.round(grandTotal*MAAS_RATE);
+  h+='<div style="margin:10px 0;padding:10px;background:#1a1035;border:1px solid #7c3aed;border-radius:8px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">';
+  h+='<div><span style="font-size:8px;color:var(--txd)">CA recalcul\u00e9</span><div style="font-size:14px;font-weight:700;color:var(--v2)">'+FK(grandTotal)+'</div></div>';
+  h+='<div style="font-size:18px;color:var(--txd)">\u00d7</div>';
+  h+='<div><span style="font-size:8px;color:var(--txd)">Taux</span><div style="font-size:14px;font-weight:700;color:var(--v2)">'+(MAAS_RATE*100).toFixed(1)+'%</div></div>';
+  h+='<div style="font-size:18px;color:var(--txd)">=</div>';
+  h+='<div><span style="font-size:8px;color:var(--txd)">Commission</span><div style="font-size:18px;font-weight:800;color:#22c55e">'+FK(commission)+' FCFA</div></div>';
+  h+='</div>';
+  /* Prix de référence summary */
+  h+='<div style="margin-top:6px;font-size:8px;color:var(--txd)">Prix r\u00e9f. = max prix d\u00e9tail du jour (toutes transactions). Modifiable par cellule.</div>';
+  h+='</details>';
+  return h;
 }
 
 /*══════ PACKS ══════*/
@@ -2455,7 +2601,7 @@ function sendChat(){
   ];
   for(var h=0;h<chatHistory.length;h++)messages.push(chatHistory[h]);
 
-  fetch('/api/chat',{
+  fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
@@ -2494,6 +2640,7 @@ function saveSession(){
     POISSON_CONFIG:POISSON_CONFIG,CAT_OVERRIDE:CAT_OVERRIDE,
     CHARGES:CHARGES,REVENU_SUPP:REVENU_SUPP,FRAIS_AB:FRAIS_AB,
     RANK_EXCLUDE:RANK_EXCLUDE,SIM_DELTA:SIM_DELTA,
+    MAAS_CLIENTS:MAAS_CLIENTS,MAAS_RATE:MAAS_RATE,MAAS_PRIX_OVERRIDE:MAAS_PRIX_OVERRIDE,
     freinte:fpVals,
     fileNames:{
       reconciliation:RAW_FILES.reconciliationName||null,
@@ -2538,6 +2685,9 @@ function loadSession(){
         if(cfg.FRAIS_AB)FRAIS_AB=cfg.FRAIS_AB;
         if(cfg.RANK_EXCLUDE)RANK_EXCLUDE=cfg.RANK_EXCLUDE;
         if(cfg.SIM_DELTA)SIM_DELTA=cfg.SIM_DELTA;
+        if(cfg.MAAS_CLIENTS)MAAS_CLIENTS=cfg.MAAS_CLIENTS;
+        if(cfg.MAAS_RATE!==undefined)MAAS_RATE=cfg.MAAS_RATE;
+        if(cfg.MAAS_PRIX_OVERRIDE)MAAS_PRIX_OVERRIDE=cfg.MAAS_PRIX_OVERRIDE;
         if(cfg.freinte){var fk2=Object.keys(cfg.freinte);for(i=0;i<fk2.length;i++){if(CATS[fk2[i]])CATS[fk2[i]].fp=cfg.freinte[fk2[i]];}}
 
         /* Load files sequentially */
