@@ -107,6 +107,17 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 .perfChg .ci input{background:var(--s2);border:1px solid var(--bd);color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 4px;border-radius:3px;width:65px;text-align:right}
 .mg{color:var(--g2)}.ml{color:var(--r2)}
 @media(max-width:800px){#D{padding:8px 10px 36px}.kpis{grid-template-columns:1fr 1fr}.fpGrid{grid-template-columns:repeat(3,1fr)}}
+/* ── Debug mode ── */
+.dbgV{cursor:pointer;text-decoration:underline dotted #3b82f6;text-underline-offset:2px;transition:color .1s}.dbgV:hover{color:var(--b2)!important;text-decoration-color:var(--b2)}
+#dbgConsole{position:fixed;bottom:0;left:0;right:0;display:none;flex-direction:column;background:var(--bg);border-top:2px solid var(--b);z-index:9999;max-height:220px;box-shadow:0 -4px 20px #000a}
+.dbgHd{display:flex;align-items:center;gap:8px;padding:5px 12px;background:var(--s2);border-bottom:1px solid var(--bd);flex-shrink:0}
+.dbgHd .dbgTtl{color:var(--b2);font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace}
+.dbgHd button{background:var(--s1);border:1px solid var(--bd);color:var(--txd);font-size:8px;padding:2px 7px;border-radius:3px;cursor:pointer;font-family:'JetBrains Mono',monospace}
+.dbgHd .dbgHint{font-size:7px;color:var(--tx3);margin-left:auto}
+#dbgLog{overflow-y:auto;padding:6px 12px;flex:1;display:flex;flex-direction:column-reverse;gap:3px;font-family:'JetBrains Mono',monospace}
+.dbgEntry{background:var(--s1);border-left:3px solid var(--b);padding:4px 8px;border-radius:0 3px 3px 0;line-height:1.5;flex-shrink:0}
+.dbgEntry .dbgLbl{color:var(--b2);font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.dbgEntry .dbgFml{color:var(--txd);font-size:8px;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -182,13 +193,22 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="D">
   <div class="hd">
-    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a></div>
+    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
     <div class="ctrl" id="fpBar"></div>
   </div>
   <div class="tabs" id="tabs"></div>
   <div class="catTabs" id="catTabs"></div>
   <div id="ct"></div>
   <div class="ft">Mata Group SA &middot; Analysis Multi-Cat&eacute;gorie</div>
+</div>
+<div id="dbgConsole">
+  <div class="dbgHd">
+    <span class="dbgTtl">&#x1F41B; Debug Console</span>
+    <button onclick="document.getElementById('dbgLog').innerHTML=''">Clear</button>
+    <button onclick="document.getElementById('dbgConsole').style.display='none'">&#x2715;</button>
+    <span class="dbgHint">Cliquer sur un nombre soulign&eacute; pour voir son calcul</span>
+  </div>
+  <div id="dbgLog"></div>
 </div>
 <script>
 (function(){
@@ -325,6 +345,15 @@ function getSellStats(pdv){
 /* Simulation config */
 var SIM_DELTA={bovin_gros:0,bovin_detail:0,veau:0,abats:0,poulet:0,agneau:0,poisson:0};
 var CHARGE_GLOBALE=0; /* Charge mensuelle globale distribuée au prorata du CA par PdV */
+var DEBUG_MODE=false;
+/* Debug helper: wraps a value in a clickable span when DEBUG_MODE is on */
+function dv(val,label,formula){
+  if(!DEBUG_MODE)return FK(val);
+  var sl=(label||'').replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
+  var sf=(formula||'').replace(/"/g,'&quot;').replace(/\n/g,'&#10;');
+  return '<span class="dbgV" data-lbl="'+sl+'" data-fml="'+sf+'">'+FK(val)+'</span>';
+}
+function dvInput(val,label){return dv(val,label,'Input utilisateur / donn\u00e9es import\u00e9es');}
 var RANK_EXCLUDE={'Abattage':true};
 var MAAS_CLIENTS={}; /* {'786071818':true} */
 var MAAS_RATE=0.025;
@@ -1456,12 +1485,13 @@ function renderPerfGlobal(el){
   var gRStotal=0;for(i=0;i<pdvs.length;i++){var rsv=REVENU_SUPP[pdvs[i]]||0;if(rsv>0){var nDi=DATA[pdvs[i]]?DATA[pdvs[i]].length:0;gRStotal+=Math.round(rsv/30*nDi);}}
   var gRSbadge=gRStotal>0?' <span style="font-size:7px;background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px;vertical-align:middle" title="Inclut '+FK(gRStotal)+' FCFA de revenu suppl\u00e9mentaire">+RS</span>':'';
   var gMaasBadge=gMaas>0?' <span style="font-size:7px;background:#22c55e;color:#000;padding:1px 4px;border-radius:3px;vertical-align:middle" title="Inclut '+FK(gMaas)+' FCFA de commission MaaS">MaaS</span>':'';
-  h+='<div class="kpi"><div class="lb">CA Total'+gRSbadge+gMaasBadge+'</div><div class="vl" style="color:var(--b2)">'+FK(gCA)+'</div><div class="sb">FCFA</div></div>';
-  h+='<div class="kpi"><div class="lb">Co\u00fbt Achat</div><div class="vl" style="color:var(--o2)">'+FK(gCost)+'</div><div class="sb">FCFA</div></div>';
-  h+='<div class="kpi"><div class="lb">Marge Brute</div><div class="vl" style="color:'+(gMB>=0?'var(--t)':'var(--r2)')+'">'+FK(gMB)+'</div><div class="sb">'+F(gMBp,1)+'%</div></div>';
-  h+='<div class="kpi"><div class="lb">Charges fixes</div><div class="vl" style="color:var(--txd)">'+FK(Math.round(gChg))+'</div><div class="sb">FCFA</div></div>';
-  if(CHARGE_GLOBALE>0)h+='<div class="kpi"><div class="lb">\ud83c\udf10 Charge Globale</div><div class="vl" style="color:var(--txd)">'+FK(CHARGE_GLOBALE)+'</div><div class="sb">distribu\u00e9e / CA</div></div>';
-  h+='<div class="kpi"><div class="lb">Marge Nette</div><div class="vl" style="color:'+(gMN>=0?'var(--g)':'var(--r2)')+'">'+FK(gMN)+'</div><div class="sb">'+F(gMNp,1)+'%</div></div>';
+  h+='<div class="kpi"><div class="lb">CA Total'+gRSbadge+gMaasBadge+'</div><div class="vl" style="color:var(--b2)">'+dvInput(gCA,'CA Total — tous PdV')+'</div><div class="sb">FCFA</div></div>';
+  var gCostFml='Bovin : '+FK(gDet.bovin.qty)+'kg \u00d7 '+FK(PRIX.bovin)+' = '+FK(gDet.bovin.cost)+'\nVeau  : '+FK(gDet.veau.qty)+'kg \u00d7 '+FK(PRIX.veau)+' = '+FK(gDet.veau.cost)+'\nPoulet: '+FK(gDet.poulet.qty)+'kg \u00d7 '+FK(PRIX.poulet)+' = '+FK(gDet.poulet.cost)+'\nAgneau: '+FK(gDet.agneau.qty)+'kg \u00d7 '+FK(PRIX.agneau)+' = '+FK(gDet.agneau.cost)+'\nPoisson:'+FK(gDet.poisson.qty)+'kg \u00d7 '+FK(PRIX.poisson)+' = '+FK(gDet.poisson.cost)+(gDet.fraisAb?'\nFrais ab.: '+FK(gDet.fraisAb):'')+'\n= Total: '+FK(gCost);
+  h+='<div class="kpi"><div class="lb">Co\u00fbt Achat</div><div class="vl" style="color:var(--o2)">'+dv(gCost,'Co\u00fbt Achat — tous PdV',gCostFml)+'</div><div class="sb">FCFA</div></div>';
+  h+='<div class="kpi"><div class="lb">Marge Brute</div><div class="vl" style="color:'+(gMB>=0?'var(--t)':'var(--r2)')+'">'+dv(gMB,'Marge Brute — tous PdV','CA \u2212 Co\u00fbt Achat\n= '+FK(gCA)+' \u2212 '+FK(gCost)+'\n= '+FK(gMB))+'</div><div class="sb">'+F(gMBp,1)+'%</div></div>';
+  h+='<div class="kpi"><div class="lb">Charges fixes</div><div class="vl" style="color:var(--txd)">'+dvInput(Math.round(gChg),'Charges Fixes — tous PdV')+'</div><div class="sb">FCFA</div></div>';
+  if(CHARGE_GLOBALE>0)h+='<div class="kpi"><div class="lb">\ud83c\udf10 Charge Globale</div><div class="vl" style="color:var(--txd)">'+dvInput(CHARGE_GLOBALE,'Charge Globale')+'</div><div class="sb">distribu\u00e9e / CA</div></div>';
+  h+='<div class="kpi"><div class="lb">Marge Nette</div><div class="vl" style="color:'+(gMN>=0?'var(--g)':'var(--r2)')+'">'+dv(gMN,'Marge Nette — tous PdV','Marge Brute \u2212 Charges Fixes'+(CHARGE_GLOBALE>0?' \u2212 Charge Globale':'')+'\n= '+FK(gMB)+' \u2212 '+FK(Math.round(gChg))+(CHARGE_GLOBALE>0?' \u2212 '+FK(CHARGE_GLOBALE):'')+'\n= '+FK(gMN))+'</div><div class="sb">'+F(gMNp,1)+'%</div></div>';
   h+='</div>';
 
   /* Prix vente moyens & Spread */
@@ -1722,12 +1752,13 @@ function renderPerfPdv(el,pdv){
   var pvRSTotal=pvHasRS?Math.round(REVENU_SUPP[pdv]/30*nDays):0;
   var pvMaaSBadge=pvMaaS>0?' <span style="font-size:7px;background:#22c55e;color:#000;padding:1px 4px;border-radius:3px">MaaS +'+FK(pvMaaS)+'</span>':'';
   h+='<div class="kpis">';
-  h+='<div class="kpi"><div class="lb">CA'+(pvHasRS?' <span style="font-size:7px;background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px">incl. RS '+FK(pvRSTotal)+'</span>':'')+pvMaaSBadge+'</div><div class="vl" style="color:var(--b2)">'+FK(tCA)+'</div><div class="sb">'+nDays+' jours</div></div>';
-  h+='<div class="kpi"><div class="lb">Co\u00fbt Achat</div><div class="vl" style="color:var(--o2)">'+FK(tCost)+'</div><div class="sb">FCFA</div></div>';
-  h+='<div class="kpi"><div class="lb">Marge Brute</div><div class="vl" style="color:'+(tMB>=0?'var(--t)':'var(--r2)')+'">'+FK(tMB)+'</div><div class="sb">'+F(tMBp,1)+'%</div></div>';
-  h+='<div class="kpi"><div class="lb">Charges fixes ('+FK(Math.round(getChargeMonthly(pdv)))+'/mois)</div><div class="vl" style="color:var(--txd)">'+FK(Math.round(tChg))+'</div><div class="sb">'+nDays+'j \u00d7 '+FK(Math.round(chgDaily))+'/j</div></div>';
-  if(cgPdvShare>0)h+='<div class="kpi"><div class="lb">\ud83c\udf10 Ch. Globale (part)</div><div class="vl" style="color:var(--txd)">'+FK(cgPdvShare)+'</div><div class="sb">'+F(tCA>0?cgPdvShare/tCA*100:0,1)+'% du CA</div></div>';
-  h+='<div class="kpi"><div class="lb">Marge Nette</div><div class="vl" style="color:'+(tMN>=0?'var(--g)':'var(--r2)')+'">'+FK(tMN)+'</div><div class="sb">'+F(tMNp,1)+'%</div></div>';
+  h+='<div class="kpi"><div class="lb">CA'+(pvHasRS?' <span style="font-size:7px;background:#7c3aed;color:#fff;padding:1px 4px;border-radius:3px">incl. RS '+FK(pvRSTotal)+'</span>':'')+pvMaaSBadge+'</div><div class="vl" style="color:var(--b2)">'+dvInput(tCA,'CA \u2014 '+pdv)+'</div><div class="sb">'+nDays+' jours</div></div>';
+  var tCostFml='Bovin : '+FK(tDet.bovin.qty)+'kg \u00d7 '+FK(getEffPrix(pdv,'bovin'))+' = '+FK(tDet.bovin.cost)+'\nVeau  : '+FK(tDet.veau.qty)+'kg \u00d7 '+FK(getEffPrix(pdv,'veau'))+' = '+FK(tDet.veau.cost)+'\nPoulet: '+FK(tDet.poulet.qty)+'kg \u00d7 '+FK(getEffPrix(pdv,'poulet'))+' = '+FK(tDet.poulet.cost)+'\nAgneau: '+FK(tDet.agneau.qty)+'kg \u00d7 '+FK(getEffPrix(pdv,'agneau'))+' = '+FK(tDet.agneau.cost)+'\nPoisson:'+FK(tDet.poisson.qty)+'kg \u00d7 '+FK(getEffPrix(pdv,'poisson'))+' = '+FK(tDet.poisson.cost)+(tDet.fraisAb?'\nFrais ab.: '+FK(tDet.fraisAb):'')+'\n= Total: '+FK(tCost);
+  h+='<div class="kpi"><div class="lb">Co\u00fbt Achat</div><div class="vl" style="color:var(--o2)">'+dv(tCost,'Co\u00fbt Achat \u2014 '+pdv,tCostFml)+'</div><div class="sb">FCFA</div></div>';
+  h+='<div class="kpi"><div class="lb">Marge Brute</div><div class="vl" style="color:'+(tMB>=0?'var(--t)':'var(--r2)')+'">'+dv(tMB,'Marge Brute \u2014 '+pdv,'CA \u2212 Co\u00fbt Achat\n= '+FK(tCA)+' \u2212 '+FK(tCost)+'\n= '+FK(tMB))+'</div><div class="sb">'+F(tMBp,1)+'%</div></div>';
+  h+='<div class="kpi"><div class="lb">Charges fixes ('+FK(Math.round(getChargeMonthly(pdv)))+'/mois)</div><div class="vl" style="color:var(--txd)">'+dvInput(Math.round(tChg),'Charges Fixes \u2014 '+pdv)+'</div><div class="sb">'+nDays+'j \u00d7 '+FK(Math.round(chgDaily))+'/j</div></div>';
+  if(cgPdvShare>0)h+='<div class="kpi"><div class="lb">\ud83c\udf10 Ch. Globale (part)</div><div class="vl" style="color:var(--txd)">'+dv(cgPdvShare,'Charge Globale (part) \u2014 '+pdv,'Charge Globale \u00d7 (CA '+pdv+' / CA Total)\n= '+FK(CHARGE_GLOBALE)+' \u00d7 '+F(tCA>0?tCA/cgTotalCA*100:0,1)+'%\n= '+FK(cgPdvShare))+'</div><div class="sb">'+F(tCA>0?cgPdvShare/tCA*100:0,1)+'% du CA</div></div>';
+  h+='<div class="kpi"><div class="lb">Marge Nette</div><div class="vl" style="color:'+(tMN>=0?'var(--g)':'var(--r2)')+'">'+dv(tMN,'Marge Nette \u2014 '+pdv,'Marge Brute \u2212 Charges Fixes'+(cgPdvShare>0?' \u2212 Ch. Globale':'')+'\n= '+FK(tMB)+' \u2212 '+FK(Math.round(tChg))+(cgPdvShare>0?' \u2212 '+FK(cgPdvShare):'')+'\n= '+FK(tMN))+'</div><div class="sb">'+F(tMNp,1)+'%</div></div>';
   h+='</div>';
 
   /* Sell stats for this PdV */
@@ -3062,6 +3093,30 @@ function loadSession(){
 }
 
 document.getElementById('btnLoadSession').addEventListener('click',loadSession);
+
+/* Debug mode toggle */
+document.getElementById('dbgToggle').addEventListener('change',function(){
+  DEBUG_MODE=this.checked;
+  var cons=document.getElementById('dbgConsole');
+  if(!DEBUG_MODE&&cons)cons.style.display='none';
+  render();
+});
+
+/* Debug click: show computation in console panel */
+document.body.addEventListener('click',function(e){
+  var t=e.target.closest('.dbgV');
+  if(!t||!DEBUG_MODE)return;
+  var cons=document.getElementById('dbgConsole');
+  var log=document.getElementById('dbgLog');
+  if(!cons||!log)return;
+  cons.style.display='flex';
+  var lbl=t.getAttribute('data-lbl')||'';
+  var fml=t.getAttribute('data-fml')||'';
+  var entry=document.createElement('div');
+  entry.className='dbgEntry';
+  entry.innerHTML='<div class="dbgLbl">'+lbl+'</div><div class="dbgFml">'+fml+'</div>';
+  log.insertBefore(entry,log.firstChild);
+});
 
 window.toggleChat=toggleChat;
 window.sendChat=sendChat;
