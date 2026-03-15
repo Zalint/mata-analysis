@@ -602,8 +602,11 @@ function calcPoissonCA(day){
 function getAbatCaDay(day){if(!day||!day.prods)return 0;var ca=0,pn=Object.keys(day.prods);for(var i=0;i<pn.length;i++){for(var ai=0;ai<ABATS_PRODS.length;ai++){if(pn[i]===ABATS_PRODS[ai]){ca+=(day.prods[pn[i]].reelF||0);break;}}}return ca;}
 /* Peaux sales CA for a single day */
 function getPeauxCaDay(day){if(!day||!day.prods||!day.prods['Peaux'])return 0;return day.prods['Peaux'].reelF||0;}
-/* Effective CA = cashR + revenu supp daily — excludes abat sales for Abattage always, and for all PDVs when ABATS_MODE/PRIX_REVIENT_MODE; excludes peaux when PRIX_REVIENT_MODE */
-function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(ABATS_MODE||PRIX_REVIENT_MODE||pdv==='Abattage')ca-=getAbatCaDay(day);if(PRIX_REVIENT_MODE)ca-=getPeauxCaDay(day);return ca+rs;}
+/* Effective CA = cashR + revenu supp daily
+   - Abattage: toujours exclut abats CA (prix_achat_kg les nette déjà côté coût)
+   - PRIX_REVIENT_MODE + Abattage: exclut aussi peaux CA (prix_revient les nette côté coût)
+   - ABATS_MODE: change uniquement le coût (prix_achat_kg), ne touche pas le CA */
+function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(pdv==='Abattage'){ca-=getAbatCaDay(day);if(PRIX_REVIENT_MODE)ca-=getPeauxCaDay(day);}return ca+rs;}
 
 /* Compute MaaS commission total for a PdV */
 function getMaaSCommission(pdv){
