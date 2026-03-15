@@ -156,7 +156,8 @@ const server = http.createServer(async (req, res) => {
   /* Proxy external API calls — adds API key server-side */
   if (req.method === 'GET' && req.url.startsWith('/api/external/')) {
     try {
-      const MATA_EXT_KEY = process.env.MATA_EXT_KEY || 'b326e72b67a9b508c88270b9954c5ca1';
+      const MATA_EXT_KEY = process.env.MATA_EXT_KEY;
+      if (!MATA_EXT_KEY) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'MATA_EXT_KEY not configured' })); return; }
       const targetUrl = 'https://mata-lgzy.onrender.com' + req.url;
       const extRes = await fetch(targetUrl, { headers: { 'x-api-key': MATA_EXT_KEY } });
       const body = await extRes.text();
