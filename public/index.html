@@ -3414,6 +3414,12 @@ function saveSession(){
   if(RAW_FILES.achats)zip.file(RAW_FILES.achatsName||'achats.xlsx',RAW_FILES.achats);
   if(RAW_FILES.ventes)zip.file(RAW_FILES.ventesName||'ventes.xlsx',RAW_FILES.ventes);
   if(RAW_FILES.packs)zip.file(RAW_FILES.packsName||'packs.json',RAW_FILES.packs);
+  /* API flow: no raw files — save serialized DATA so session can be restored */
+  if(!RAW_FILES.reconciliation&&DATA&&Object.keys(DATA).length>0){
+    var dsApi={};var pdvsApi=Object.keys(DATA);
+    for(var di2=0;di2<pdvsApi.length;di2++){var pv2=pdvsApi[di2];dsApi[pv2]=DATA[pv2].map(function(day){var d=Object.assign({},day);d.date=day.date?day.date.toISOString():null;return d;});}
+    zip.file('data.json',JSON.stringify({DATA:dsApi,VENTES_DATA:VENTES_DATA,PACK_DATA:PACK_DATA,PRIX:{bovin:PRIX.bovin,veau:PRIX.veau,poulet:PRIX.poulet,agneau:PRIX.agneau,poisson:PRIX.poisson}}));
+  }
   /* Config */
   var fpVals={};var cks=Object.keys(CATS);for(var i=0;i<cks.length;i++)fpVals[cks[i]]=CATS[cks[i]].fp;
   var config={
@@ -3573,7 +3579,47 @@ function loadSession(){
               if(txt){RAW_FILES.packs=txt;RAW_FILES.packsName=fnames.packs;PACK_DATA=JSON.parse(txt);}
               /* Load reconciliation (main file — triggers parse) */
               loadFileFromZip('reconciliation',function(ab3){
-                if(!ab3){alert('Fichier reconciliation manquant.');return;}
+                if(!ab3){
+                  /* API-flow session: try data.json */
+                  var dataFile=zip.file('data.json');
+                  if(dataFile){
+                    dataFile.async('string').then(function(dataStr){
+                      var sd=JSON.parse(dataStr);
+                      restoreFromCache(sd);
+                      /* Rebuild ventes indexes from restored VENTES_DATA */
+                      if(VENTES_DATA&&VENTES_DATA.orders){
+                        POISSON_VENTES={};BOVIN_VENTES={};
+                        var vks2=Object.keys(VENTES_DATA.orders);
+                        for(var vpi2=0;vpi2<vks2.length;vpi2++){
+                          var vord2=VENTES_DATA.orders[vks2[vpi2]];
+                          for(var vii2=0;vii2<vord2.items.length;vii2++){
+                            var vit2=vord2.items[vii2];var vitCat2=String(vit2.cat||'').toLowerCase();
+                            if(!vit2.prod||!vit2.qty)continue;
+                            if(vitCat2==='poisson'){
+                              if(!POISSON_VENTES[vord2.pdv])POISSON_VENTES[vord2.pdv]={};
+                              if(!POISSON_VENTES[vord2.pdv][vit2.prod])POISSON_VENTES[vord2.pdv][vit2.prod]={qty:0,fcfa:0};
+                              POISSON_VENTES[vord2.pdv][vit2.prod].qty+=vit2.qty;POISSON_VENTES[vord2.pdv][vit2.prod].fcfa+=vit2.montant;
+                            } else if(vitCat2==='bovin'){
+                              var vitIsV=vit2.prod.toLowerCase().indexOf('veau')>=0;
+                              var vitIsA=false;for(var vai=0;vai<ABATS_PRODS.length;vai++){if(vit2.prod===ABATS_PRODS[vai]){vitIsA=true;break;}}
+                              if(!vitIsA){
+                                if(!BOVIN_VENTES[vord2.pdv])BOVIN_VENTES[vord2.pdv]={boeuf:{qty:0,fcfa:0},veau:{qty:0,fcfa:0}};
+                                if(vitIsV){BOVIN_VENTES[vord2.pdv].veau.qty+=vit2.qty;BOVIN_VENTES[vord2.pdv].veau.fcfa+=vit2.montant;}
+                                else{BOVIN_VENTES[vord2.pdv].boeuf.qty+=vit2.qty;BOVIN_VENTES[vord2.pdv].boeuf.fcfa+=vit2.montant;}
+                              }
+                            }
+                          }
+                        }
+                      }
+                      document.getElementById('UZ').style.display='none';
+                      document.getElementById('D').style.display='block';
+                      buildTabs();buildCatTabs();buildFpBar();render();
+                    }).catch(function(){alert('Fichier reconciliation manquant.');});
+                  } else {
+                    alert('Fichier reconciliation manquant.');
+                  }
+                  return;
+                }
                 RAW_FILES.reconciliation=ab3;RAW_FILES.reconciliationName=fnames.reconciliation;
                 /* Simulate file load */
                 var fakeFile={name:fnames.reconciliation||'reconciliation.xlsx'};
