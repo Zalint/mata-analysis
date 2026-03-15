@@ -2,6 +2,14 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+/* Load .env manually so the server works whether started via npm start or node server.js */
+try {
+  fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split('\n').forEach(line => {
+    const m = line.match(/^([^#][^=]*)=(.+)$/);
+    if (m && !process.env[m[1].trim()]) process.env[m[1].trim()] = m[2].trim();
+  });
+} catch(e) {}
+
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY || 'YOUR_API_KEY_HERE';
 const AUTH_USER = process.env.USER || 'mata';

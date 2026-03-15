@@ -1086,7 +1086,7 @@ async function launchApiAnalysis(){
     }
 
     /* ── Step 4: pack → inject into DATA days ── */
-    PACK_DATA=packRes;
+    if(packRes.success)PACK_DATA=packRes;
     if(packRes.success&&packRes.pointsVente){
       var pkPdvs=Object.keys(packRes.pointsVente);
       for(var pki=0;pki<pkPdvs.length;pki++){
