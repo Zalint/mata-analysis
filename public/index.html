@@ -107,6 +107,17 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 .perfChg .ci input{background:var(--s2);border:1px solid var(--bd);color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 4px;border-radius:3px;width:65px;text-align:right}
 .mg{color:var(--g2)}.ml{color:var(--r2)}
 @media(max-width:800px){#D{padding:8px 10px 36px}.kpis{grid-template-columns:1fr 1fr}.fpGrid{grid-template-columns:repeat(3,1fr)}}
+/* ── API Period Panel ── */
+#apiPanel{background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #334155;border-radius:12px;padding:16px 20px;margin-bottom:18px}
+#apiPanel .apHd{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#7c3aed;margin-bottom:12px}
+#apiPanel .apRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#apiPanel label{font-size:9px;color:var(--txd);display:flex;flex-direction:column;gap:3px}
+#apiPanel input[type=date]{background:var(--s2);border:1px solid var(--bd);color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:10px;padding:5px 8px;border-radius:6px;outline:none;cursor:pointer}
+#apiPanel input[type=date]:focus{border-color:#7c3aed}
+#apBtn{background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:7px;padding:7px 20px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:.15s;white-space:nowrap}
+#apBtn:hover{opacity:.85}#apBtn:disabled{opacity:.5;cursor:not-allowed}
+#apStatus{font-size:9px;color:var(--txd);font-family:'JetBrains Mono',monospace;margin-top:8px;min-height:14px;line-height:1.6}
+#apStatus .ok{color:var(--g2)}#apStatus .err{color:var(--r2)}#apStatus .ld{color:#a78bfa}
 /* ── Debug mode ── */
 .dbgV{cursor:pointer;text-decoration:underline dotted #3b82f6;text-underline-offset:2px;transition:color .1s}.dbgV:hover{color:var(--b2)!important;text-decoration-color:var(--b2)}
 #dbgConsole{position:fixed;bottom:0;left:0;right:0;display:none;flex-direction:column;background:var(--bg);border-top:2px solid var(--b);z-index:9999;max-height:220px;box-shadow:0 -4px 20px #000a}
@@ -140,6 +151,16 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
     <b style="color:var(--tx)">&bull; Perf PdV</b> &mdash; Rentabilit&eacute; : CA &minus; Co&ucirc;t d&rsquo;achat (param&eacute;trable) &minus; Charges fixes (liss&eacute;es /30j) &rarr; Marge Brute &amp; Nette<br>
     <b style="color:var(--tx)">&bull; Interactif</b> &mdash; Freintes par cat&eacute;gorie, exclusion d&eacute;chets/abats, prix d&rsquo;achat &eacute;ditables, charges PdV modifiables, hover d&eacute;tail co&ucirc;t &amp; reclassif
   </div>
+  <div id="apiPanel">
+    <div class="apHd">&#9889; Analyse par p&eacute;riode — chargement API</div>
+    <div class="apRow">
+      <label>Date d&eacute;but<input type="date" id="apDebut"></label>
+      <label>Date fin<input type="date" id="apFin"></label>
+      <button id="apBtn" onclick="launchApiAnalysis()">&#128640; Lancer l&rsquo;analyse</button>
+    </div>
+    <div id="apStatus"></div>
+  </div>
+  <div style="margin-bottom:12px;text-align:center;font-size:9px;color:var(--tx3)">&#8213; ou importer manuellement les fichiers Excel ci-dessous &#8213;</div>
   <div class="drop" id="drop"><div class="ic">&#128202;</div><div class="lb">Glissez le <b>.xlsx</b> ici ou cliquez</div><input type="file" id="fi" accept=".xlsx,.xls"></div>
   <div style="margin-top:10px;text-align:center"><span style="font-size:9px;color:var(--tx3)">ou</span></div>
   <div class="drop" id="dropAll" style="padding:14px;border-color:#7c3aed;border-style:dashed;margin-top:10px">
@@ -517,6 +538,15 @@ function costPopup(cd){
 
 function log(m){dbg.push(m);}
 function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\n\n=== Debug Log ('+dbg.length+' entries) ===\n'+dbg.join('\n');el.style.display='block';}
+
+/* Default API date range = current month */
+(function(){
+  var now=new Date(),y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0');
+  var lastDay=new Date(y,now.getMonth()+1,0).getDate();
+  var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
+  if(d1)d1.value=y+'-'+m+'-01';
+  if(d2)d2.value=y+'-'+m+'-'+String(lastDay).padStart(2,'0');
+})();
 
 var drop=document.getElementById('drop'),fi=document.getElementById('fi');
 drop.addEventListener('click',function(){fi.click();});
@@ -958,6 +988,190 @@ function buildFpBar(){
   document.getElementById('btnPacks').addEventListener('click',importPacks);
   document.getElementById('btnSave').addEventListener('click',saveSession);
 }
+/*══════ API PERIOD ANALYSIS ══════*/
+/* Category mapping: reconciliation product name → internal cat string */
+var RECON_CAT={
+  'Boeuf':'Bovin','Veau':'Bovin','Poulet':'Volaille',
+  'Agneau':'Ovin','Poisson':'Poisson',
+  'Tete De Mouton':'Ovin','Tablette':'Ovin',
+  'Mergez':'Bovin','Merguez':'Bovin',
+  'Foie':'Bovin','Yell':'Bovin',
+  'D\u00e9chet 400':'Bovin','Autres':'Autres'
+};
+function apStatus(msg,cls){
+  var el=document.getElementById('apStatus');
+  if(el)el.innerHTML='<span class="'+(cls||'ld')+'">'+msg+'</span>';
+}
+function fmtApiDate(ymd){/* YYYY-MM-DD → DD/MM/YYYY URL-encoded */
+  var p=ymd.split('-');return encodeURIComponent(p[2]+'/'+p[1]+'/'+p[0]);
+}
+async function launchApiAnalysis(){
+  var debut=document.getElementById('apDebut').value;
+  var fin=document.getElementById('apFin').value;
+  if(!debut||!fin){apStatus('Veuillez saisir une date de d\u00e9but et de fin.','err');return;}
+  if(debut>fin){apStatus('La date de d\u00e9but doit \u00eatre ant\u00e9rieure \u00e0 la date de fin.','err');return;}
+  var btn=document.getElementById('apBtn');
+  btn.disabled=true;
+  try{
+    /* ── Step 1: achats-boeuf → weighted avg prix ── */
+    apStatus('1/4 Chargement achats boeuf\u2026');
+    var achatRes=await fetch('/api/external/achats-boeuf?startDate='+debut+'&endDate='+fin);
+    var achatJson=await achatRes.json();
+    var boeufTotPx=0,boeufTotKg=0,veauTotPx=0,veauTotKg=0;
+    if(achatJson.success&&achatJson.data&&achatJson.data.achats){
+      achatJson.data.achats.forEach(function(a){
+        var px=a.prix_achat_kg_sans_abats||0,kg=a.nbr_kg||0;
+        if(a.bete==='boeuf'){boeufTotPx+=px*kg;boeufTotKg+=kg;}
+        else if(a.bete==='veau'){veauTotPx+=px*kg;veauTotKg+=kg;}
+      });
+    }
+    var pxBoeuf=boeufTotKg>0?Math.round(boeufTotPx/boeufTotKg):PRIX.bovin;
+    var pxVeau=veauTotKg>0?Math.round(veauTotPx/veauTotKg):(boeufTotKg>0?pxBoeuf:PRIX.veau);
+
+    /* ── Step 2: parallel fetch ventes + recon + pack ── */
+    apStatus('2/4 Chargement ventes, r\u00e9conciliation, packs\u2026');
+    var reconStart=fmtApiDate(debut),reconEnd=fmtApiDate(fin);
+    var [ventesRes,reconRes,packRes]=await Promise.all([
+      fetch('/api/external/ventes?dateDebut='+debut+'&dateFin='+fin).then(function(r){return r.json();}),
+      fetch('/api/external/reconciliation/by-date?startDate='+reconStart+'&endDate='+reconEnd).then(function(r){return r.json();}),
+      fetch('/api/external/ventes-date/pack/aggregated?start_date='+debut+'&end_date='+fin
+        +'&boeufPackAchat='+pxBoeuf+'&veauPackAchat='+pxVeau
+        +'&agneauPackAchat=4500&pouletPackAchat=2800&oeufPackAchat=2800').then(function(r){return r.json();})
+    ]);
+
+    /* ── Step 3: reconciliation → DATA ── */
+    apStatus('3/4 Transformation donn\u00e9es\u2026');
+    var newData={};
+    if(reconRes.success&&reconRes.data&&reconRes.data.byDate){
+      var byDate=reconRes.data.byDate;
+      var dKeys=Object.keys(byDate);
+      for(var di=0;di<dKeys.length;di++){
+        var dayRec=byDate[dKeys[di]];
+        /* date key is "DD-MM-YYYY" */
+        var dp=dKeys[di].split('-');
+        var dayDate=new Date(+dp[2],+dp[1]-1,+dp[0]);
+        if(isNaN(dayDate.getTime()))continue;
+        var pdvKeys=Object.keys(dayRec.details||{});
+        for(var pi=0;pi<pdvKeys.length;pi++){
+          var pdvNm=pdvKeys[pi];
+          if(SKIP.indexOf(pdvNm)>=0)continue;
+          if(!newData[pdvNm])newData[pdvNm]=[];
+          var prods=dayRec.details[pdvNm];
+          var dayProds={};
+          var cashR=0,cashT=0,cashE=0;
+          var prdKeys=Object.keys(prods||{});
+          for(var ri=0;ri<prdKeys.length;ri++){
+            var pn=prdKeys[ri];
+            var pr=prods[pn];
+            var cat=RECON_CAT[pn]||'Bovin';
+            var reel=pr.ventesNombre||0;
+            var theo=pr.ventesTheoriquesNombre||0;
+            var reelF=pr.ventesValeur||0;
+            var theoF=pr.ventesTheoriquesValeur||0;
+            var ecartF=pr.ecartValeur||0;
+            dayProds[pn]={reel:reel,theo:theo,ajust:reel,cat:cat,catOrig:cat,reelF:reelF,theoF:theoF,ecartF:ecartF};
+            cashR+=reelF;cashT+=theoF;cashE+=ecartF;
+          }
+          newData[pdvNm].push({date:dayDate,prods:dayProds,cashR:cashR,cashT:cashT,cashE:cashE});
+        }
+      }
+      /* Sort days per PdV */
+      var pdvList=Object.keys(newData);
+      for(var si=0;si<pdvList.length;si++){
+        newData[pdvList[si]].sort(function(a,b){return a.date-b.date;});
+      }
+    }
+
+    /* ── Step 4: pack → inject into DATA days ── */
+    PACK_DATA=packRes;
+    if(packRes.success&&packRes.pointsVente){
+      var pkPdvs=Object.keys(packRes.pointsVente);
+      for(var pki=0;pki<pkPdvs.length;pki++){
+        var pkPdv=pkPdvs[pki];
+        if(!newData[pkPdv])continue;
+        var pkPdvData=packRes.pointsVente[pkPdv];
+        var pkTypes=Object.keys(pkPdvData.packsVendus||{});
+        for(var pti=0;pti<pkTypes.length;pti++){
+          var pkNm=pkTypes[pti];
+          var pkVal=parseInt(pkNm.replace('Pack',''),10)||0;
+          var pkDays=pkPdvData.packsVendus[pkNm].detailsParJour||[];
+          for(var pkdi=0;pkdi<pkDays.length;pkdi++){
+            var pkDayStr=pkDays[pkdi].date; /* YYYY-MM-DD */
+            var pkQty=pkDays[pkdi].quantite||0;
+            var pkDayParts=pkDayStr.split('-');
+            var pkDayDate=new Date(+pkDayParts[0],+pkDayParts[1]-1,+pkDayParts[2]);
+            /* Find matching day in DATA */
+            var pdvDays=newData[pkPdv];
+            for(var pkfi=0;pkfi<pdvDays.length;pkfi++){
+              var dd=pdvDays[pkfi];
+              if(dd.date.getFullYear()===pkDayDate.getFullYear()&&
+                 dd.date.getMonth()===pkDayDate.getMonth()&&
+                 dd.date.getDate()===pkDayDate.getDate()){
+                var pkFA=pkQty*pkVal;
+                if(!dd.prods[pkNm])dd.prods[pkNm]={reel:0,theo:0,ajust:0,cat:'Pack',catOrig:'Pack',reelF:0,theoF:0,ecartF:0};
+                dd.prods[pkNm].reel+=pkQty;dd.prods[pkNm].theo+=pkQty;dd.prods[pkNm].ajust+=pkQty;
+                dd.prods[pkNm].reelF+=pkFA;dd.prods[pkNm].theoF+=pkFA;
+                dd.cashR+=pkFA;dd.cashT+=pkFA;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    /* ── Step 5: ventes → VENTES_DATA ── */
+    VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
+    if(ventesRes.success&&ventesRes.ventes){
+      var ventes=ventesRes.ventes;
+      for(var vi=0;vi<ventes.length;vi++){
+        var v=ventes[vi];
+        var vKey=vi;
+        var vPdv=v['Point de Vente']||'';
+        var vDate=v['Date']||'';
+        var vProd=v['Produit']||'';
+        var vCat=v['Cat\u00e9gorie']||'';
+        var vQty=parseFloat(v['Nombre'])||0;
+        var vMnt=parseFloat(v['Montant'])||0;
+        var vNum=v['numeroClient']||null;
+        var vNom=v['nomClient']||null;
+        VENTES_DATA.orders[vKey]={id:vKey,pdv:vPdv,date:vDate,montant:vMnt,numClient:vNum,nomClient:vNom,
+          items:[{prod:vProd,cat:vCat,qty:vQty,montant:vMnt}]};
+        if(vNum){
+          if(!VENTES_DATA.byClient[vNum])VENTES_DATA.byClient[vNum]={nom:vNom,total:0,nOrders:0,orderIds:{},pdvs:{}};
+          VENTES_DATA.byClient[vNum].total+=vMnt;
+          VENTES_DATA.byClient[vNum].nOrders++;
+          VENTES_DATA.byClient[vNum].orderIds[vKey]=1;
+          VENTES_DATA.byClient[vNum].pdvs[vPdv]=1;
+        }
+      }
+    }
+
+    /* ── Step 6: apply prices + set DATA ── */
+    PRIX.bovin=pxBoeuf;
+    PRIX.veau=pxVeau;
+    DATA=newData;
+
+    /* Hide upload zone, show main app */
+    var uz=document.getElementById('UZ');
+    var dd=document.getElementById('D');
+    if(uz)uz.style.display='none';
+    if(dd)dd.style.display='block';
+    render();
+
+    var nPdvs=Object.keys(DATA).length;
+    var nDays=0;Object.keys(DATA).forEach(function(p){nDays+=DATA[p].length;});
+    var nVentes=Object.keys(VENTES_DATA.orders).length;
+    apStatus('\u2705 '+nPdvs+' PdV, '+nDays+' jours, '+nVentes+' ventes charg\u00e9s — Boeuf: '+pxBoeuf+' FCFA/kg · Veau: '+pxVeau+' FCFA/kg','ok');
+
+  }catch(err){
+    apStatus('\u274c Erreur: '+err.message,'err');
+    console.error(err);
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 function render(){
   /* Apply category overrides dynamically */
   try{
