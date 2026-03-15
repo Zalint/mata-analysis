@@ -302,11 +302,11 @@ var PRIX_DATE={}; /* override per pdv/date: {pdv:{dateKey:{bovin:X,...}}} */
 var PRIX_PDV={}; /* override per pdv: {'Keur Massar':{poulet:1910},...} */
 /* Dynamic margin mode: prix_achat = avg_sell_price × (1 - marge%) */
 var MARGE_MODE={poulet:false,agneau:false};
-var MARGE_PCT={poulet:20,agneau:20};
+var MARGE_PCT={poulet:15,agneau:20};
 var MARGE_MODE_PDV={}; /* {pdv:{poulet:bool,agneau:bool}} */
 var MARGE_PCT_PDV={};  /* {pdv:{poulet:num,agneau:num}} */
 var CHARGES={
-  'O.Foire':{sal_com:100000,nb_com:2,sal_bou:150000,nb_bou:2,loyer:500000,elec:150000,internet:10000,autres:0},
+  'O.Foire':{sal_com:100000,nb_com:1.5,sal_bou:150000,nb_bou:2,loyer:500000,elec:150000,internet:10000,autres:0},
   'Keur Massar':{sal_com:100000,nb_com:1,sal_bou:150000,nb_bou:1,loyer:150000,elec:25000,internet:5000,autres:0},
   'Mbao':{sal_com:100000,nb_com:1,sal_bou:150000,nb_bou:1,loyer:100000,elec:25000,internet:5000,autres:0},
   'Sacre Coeur':{sal_com:100000,nb_com:1,sal_bou:150000,nb_bou:1,loyer:70000,elec:25000,internet:5000,autres:0},
@@ -433,7 +433,7 @@ function applyMargeMode(){
         var avg=getAvgSellPrice(cat,pdv);
         if(avg>0){
           if(!PRIX_PDV[pdv])PRIX_PDV[pdv]={};
-          PRIX_PDV[pdv][cat]=Math.round(avg*(1-(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][cat]||20)/100));
+          PRIX_PDV[pdv][cat]=Math.round(avg*(1-(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][cat]!=null?MARGE_PCT_PDV[pdv][cat]:MARGE_PCT[cat])/100));
         }
       }
     });
@@ -1747,7 +1747,7 @@ function renderPrixInputs(pdv){
     var isOverride=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined;
     var hasMarge=(k==='poulet'||k==='agneau');
     var margeOn=hasMarge&&(pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k]);
-    var margePct=hasMarge?(pdv?(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][k]!=null?MARGE_PCT_PDV[pdv][k]:20):MARGE_PCT[k]):20;
+    var margePct=hasMarge?(pdv?(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][k]!=null?MARGE_PCT_PDV[pdv][k]:MARGE_PCT[k]):MARGE_PCT[k]):MARGE_PCT[k]||20;
     var avgPx=margeOn?getAvgSellPrice(k,pdv||undefined):0;
     if(k==='poisson'){
       /* Individual fish type entries instead of single Poisson box */
