@@ -167,14 +167,18 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
       <button onclick="window.clearAnalysisCache()" style="font-size:9px;padding:3px 10px;background:var(--s2);border:1px solid var(--bd);color:var(--r2);border-radius:5px;cursor:pointer">&#128465; Vider le cache</button>
     </div>
   </div>
-  <div style="margin-bottom:12px;text-align:center;font-size:9px;color:var(--tx3)">&#8213; ou importer manuellement les fichiers Excel ci-dessous &#8213;</div>
+  <details id="manualImport" style="margin-top:4px;border:1px solid var(--bd);border-radius:8px;overflow:hidden">
+    <summary style="padding:10px 14px;cursor:pointer;font-size:9px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:1.5px;list-style:none;display:flex;align-items:center;gap:6px;background:var(--s1)">
+      <span style="font-size:10px">&#9654;</span> Importer manuellement les fichiers Excel
+    </summary>
+    <div style="padding:14px">
   <div class="drop" id="drop"><div class="ic">&#128202;</div><div class="lb">Glissez le <b>.xlsx</b> ici ou cliquez</div><input type="file" id="fi" accept=".xlsx,.xls"></div>
   <div style="margin-top:10px;text-align:center"><span style="font-size:9px;color:var(--tx3)">ou</span></div>
   <div class="drop" id="dropAll" style="padding:14px;border-color:#7c3aed;border-style:dashed;margin-top:10px">
     <div class="lb" style="font-size:10px">&#128230; Glissez <b style="color:#a78bfa">les 3 fichiers</b> d&rsquo;un coup (Reconciliation + Achats + Ventes)</div>
     <input type="file" id="fiAll" accept=".xlsx,.xls" multiple>
   </div>
-  <div style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:16px;text-align:left;font-size:10px;color:var(--txd);line-height:1.7">
+  <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:12px;text-align:left;font-size:10px;color:var(--txd);line-height:1.7">
     <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);margin-bottom:6px">&#128196; Fichier attendu</div>
     <span style="color:var(--tx)">Reconciliation_par_date</span> export&eacute; depuis le <b style="color:var(--b2)">menu Admin</b> &rarr; <b style="color:var(--b2)">API External</b> :<br>
     1. Type d&rsquo;API &rarr; <b style="color:var(--tx)">R&eacute;conciliation par date</b><br>
@@ -182,7 +186,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
     3. Point de vente &rarr; <b style="color:var(--tx)">Tous</b><br>
     4. Cliquer <b style="color:var(--g2)">Export Excel</b> en bas &agrave; droite
   </div>
-  <div style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left">
+  <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left">
     <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);margin-bottom:6px">&#128176; Achats Boeuf (optionnel)</div>
     <div style="font-size:9px;color:var(--txd);margin-bottom:8px;line-height:1.5">Importer le fichier achats pour calculer le prix d&rsquo;achat pond&eacute;r&eacute; (Boeuf &amp; Veau) et les frais d&rsquo;abattage.</div>
     <div class="drop" id="drop2" style="padding:16px;border-radius:8px">
@@ -191,7 +195,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
     </div>
     <div id="achatInfo" style="display:none;margin-top:8px;font-size:9px;color:var(--g2);font-family:'JetBrains Mono',monospace"></div>
   </div>
-  <div style="background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left">
+  <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left">
     <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);margin-bottom:6px">&#128031; Tableau Ventes (optionnel)</div>
     <div style="font-size:9px;color:var(--txd);margin-bottom:8px;line-height:1.5">Importer le tableau des ventes pour avoir les vrais prix et quantit&eacute;s de Poisson par produit (corrige le double comptage).</div>
     <div class="drop" id="drop3" style="padding:16px;border-radius:8px">
@@ -200,6 +204,8 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
     </div>
     <div id="venteInfo" style="display:none;margin-top:8px;font-size:9px;color:var(--g2);font-family:'JetBrains Mono',monospace"></div>
   </div>
+    </div>
+  </details>
   <div class="fpGrid">
     <div class="fpCard"><div class="fpLb" style="color:#dc2626">&#129385; Boeuf</div><input class="fpI" data-c="boeuf" type="number" value="0" min="0" max="20" step="0.5"><span class="u">%</span></div>
     <div class="fpCard"><div class="fpLb" style="color:#991b1b">&#128002; Bovin</div><input class="fpI" data-c="bovin" type="number" value="0" min="0" max="20" step="0.5"><span class="u">%</span></div>
