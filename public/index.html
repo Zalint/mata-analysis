@@ -471,7 +471,7 @@ function dv(val,label,formula){
 }
 function dvInput(val,label){return dv(val,label,'Input utilisateur / donn\u00e9es import\u00e9es');}
 var RANK_EXCLUDE={'Abattage':true};
-var MAAS_CLIENTS={}; /* {'786071818':true} */
+var MAAS_CLIENTS={'786071818':true}; /* Keur Bali – checked by default */
 var MAAS_RATE=0.025;
 var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 
@@ -1397,7 +1397,7 @@ async function launchApiAnalysis(){
           VENTES_DATA.byClient[vNum].total+=vMnt;
           VENTES_DATA.byClient[vNum].nOrders++;
           VENTES_DATA.byClient[vNum].orderIds[vKey]=1;
-          VENTES_DATA.byClient[vNum].pdvs[vPdv]=1;
+          VENTES_DATA.byClient[vNum].pdvs[vPdv]=(VENTES_DATA.byClient[vNum].pdvs[vPdv]||0)+vMnt;
         }
       }
     }
