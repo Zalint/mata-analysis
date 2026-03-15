@@ -1270,6 +1270,25 @@ async function launchApiAnalysis(){
       }
     }
 
+    /* ── Step 5b: build POISSON_VENTES from VENTES_DATA ── */
+    POISSON_VENTES={};
+    if(VENTES_DATA&&VENTES_DATA.orders){
+      var vks=Object.keys(VENTES_DATA.orders);
+      for(var vpi=0;vpi<vks.length;vpi++){
+        var vord=VENTES_DATA.orders[vks[vpi]];
+        var vpdv=vord.pdv;
+        for(var vii=0;vii<vord.items.length;vii++){
+          var vit=vord.items[vii];
+          if(String(vit.cat||'').toLowerCase()!=='poisson')continue;
+          if(!vit.prod||!vit.qty)continue;
+          if(!POISSON_VENTES[vpdv])POISSON_VENTES[vpdv]={};
+          if(!POISSON_VENTES[vpdv][vit.prod])POISSON_VENTES[vpdv][vit.prod]={qty:0,fcfa:0};
+          POISSON_VENTES[vpdv][vit.prod].qty+=vit.qty;
+          POISSON_VENTES[vpdv][vit.prod].fcfa+=vit.montant;
+        }
+      }
+    }
+
     /* ── Step 6: apply prices + set DATA ── */
     PRIX.bovin=pxBoeuf;
     PRIX.veau=pxVeau;
