@@ -1909,12 +1909,12 @@ function renderPrixInputs(pdv){
   /* Abats mode toggle — only shown when prix_achat_kg data is available from API */
   if(PRIX_AVEC_ABATS.bovin>0||PRIX_AVEC_ABATS.veau>0){
     h+='<div style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:6px;padding:7px 12px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:7px">';
-    h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="abatsModeCb"'+(ABATS_MODE&&!PRIX_REVIENT_MODE?' checked':'')+' style="accent-color:#dc2626;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#dc2626">Abats inclus</span></label>';
+    h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="abatsModeCb"'+(ABATS_MODE&&!PRIX_REVIENT_MODE?' checked':'')+' style="accent-color:#dc2626;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#dc2626">Mode Abats inclus</span></label>';
     if(PRIX_AVEC_ABATS.bovin>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.bovin)+'</b> F/kg</span>';
     if(PRIX_AVEC_ABATS.veau>0)h+='<span style="font-size:8px;color:var(--txd)">veau <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.veau)+'</b> F/kg</span>';
     if(PRIX_REVIENT.bovin>0||PRIX_REVIENT.veau>0){
       h+='<span style="width:1px;height:16px;background:rgba(220,38,38,.3);display:inline-block;margin:0 4px"></span>';
-      h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="prixRevientModeCb"'+(PRIX_REVIENT_MODE?' checked':'')+' style="accent-color:#f97316;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#f97316">Prix de revient</span></label>';
+      h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="prixRevientModeCb"'+(PRIX_REVIENT_MODE?' checked':'')+' style="accent-color:#f97316;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#f97316">Mode Prix de revient</span></label>';
       if(PRIX_REVIENT.bovin>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 <b style="color:#fdba74;font-family:JetBrains Mono">'+FK(PRIX_REVIENT.bovin)+'</b> F/kg</span>';
       if(PRIX_REVIENT.veau>0)h+='<span style="font-size:8px;color:var(--txd)">veau <b style="color:#fdba74;font-family:JetBrains Mono">'+FK(PRIX_REVIENT.veau)+'</b> F/kg</span>';
       h+='<span style="font-size:7px;color:var(--tx3);font-style:italic">(abats+peaux)</span>';
