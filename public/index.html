@@ -301,7 +301,7 @@ var POISSON_CONFIG={
 var PRIX_DATE={}; /* override per pdv/date: {pdv:{dateKey:{bovin:X,...}}} */
 var PRIX_PDV={}; /* override per pdv: {'Keur Massar':{poulet:1910},...} */
 /* Dynamic margin mode: prix_achat = avg_sell_price × (1 - marge%) */
-var MARGE_MODE={poulet:false,agneau:false};
+var MARGE_MODE={poulet:true,agneau:false};
 var MARGE_PCT={poulet:15,agneau:20};
 var MARGE_MODE_PDV={}; /* {pdv:{poulet:bool,agneau:bool}} */
 var MARGE_PCT_PDV={};  /* {pdv:{poulet:num,agneau:num}} */
@@ -399,7 +399,7 @@ var MAAS_RATE=0.025;
 var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 
 /* Abats product names (for Abattage PdV only) */
-var ABATS_PRODS=['Abats','Foie','Yell'];
+var ABATS_PRODS=['Abats','Foie','Yell','Merguez','Mergez','Déchet 400','Déchet'];
 
 /* Weighted average selling price for a category — scoped to one PdV or all */
 function getAvgSellPrice(cat,pdv){
