@@ -216,7 +216,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="D">
   <div class="hd">
-    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
+    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Nouvelle p&eacute;riode</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
     <div class="ctrl" id="fpBar"></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -1160,6 +1160,8 @@ async function launchApiAnalysis(){
     var dd=document.getElementById('D');
     if(uz)uz.style.display='none';
     if(dd)dd.style.display='block';
+    var bk=document.getElementById('backToUpload');if(bk)bk.style.display='inline';
+    window.scrollTo(0,0);
     render();
 
     var nPdvs=Object.keys(DATA).length;
