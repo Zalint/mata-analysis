@@ -544,10 +544,11 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
 /* Default API date range = current month */
 (function(){
   var now=new Date(),y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0');
-  var lastDay=new Date(y,now.getMonth()+1,0).getDate();
+  var yesterday=new Date(now);yesterday.setDate(now.getDate()-1);
+  var yy=yesterday.getFullYear(),ym=String(yesterday.getMonth()+1).padStart(2,'0'),yd=String(yesterday.getDate()).padStart(2,'0');
   var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
   if(d1)d1.value=y+'-'+m+'-01';
-  if(d2)d2.value=y+'-'+m+'-'+String(lastDay).padStart(2,'0');
+  if(d2)d2.value=yy+'-'+ym+'-'+yd;
 })();
 
 var drop=document.getElementById('drop'),fi=document.getElementById('fi');
