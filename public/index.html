@@ -221,7 +221,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="D">
   <div class="hd">
-    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Nouvelle p&eacute;riode</a><a href="#" onclick="clearAnalysisCache();return false;" style="margin-left:8px;font-size:10px;color:var(--r2);text-decoration:none;opacity:.6" title="Vider le cache localStorage">&#128465;</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
+    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Changer p&eacute;riode</a><a id="btnRefresh" href="#" onclick="window.refreshAnalysis();return false;" style="margin-left:8px;font-size:10px;color:var(--g2);text-decoration:none;display:none" title="Relancer l&#39;analyse API avec la m&ecirc;me p&eacute;riode">&#128260; Rafra&icirc;chir</a><a href="#" onclick="clearAnalysisCache();return false;" style="margin-left:8px;font-size:10px;color:var(--r2);text-decoration:none;opacity:.6" title="Vider le cache localStorage">&#128465;</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
     <div class="ctrl" id="fpBar"></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -598,7 +598,22 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
   var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
   if(d1)d1.value=y+'-'+m+'-01';
   if(d2)d2.value=yy+'-'+ym+'-'+yd;
-  showCacheBanner();
+  /* Auto-restore cache on page load */
+  var autoCache=getCacheInfo();
+  if(autoCache&&autoCache.DATA&&Object.keys(autoCache.DATA).length>0){
+    /* Restore dates in pickers */
+    if(d1&&autoCache.debut)d1.value=autoCache.debut;
+    if(d2&&autoCache.fin)d2.value=autoCache.fin;
+    restoreFromCache(autoCache);
+    var uz2=document.getElementById('UZ'),dd2=document.getElementById('D');
+    if(uz2)uz2.style.display='none';
+    if(dd2)dd2.style.display='block';
+    var bk2=document.getElementById('backToUpload');if(bk2)bk2.style.display='inline';
+    var br2=document.getElementById('btnRefresh');if(br2)br2.style.display='inline';
+    buildTabs();buildCatTabs();buildFpBar();render();
+  }else{
+    showCacheBanner();
+  }
 })();
 
 var drop=document.getElementById('drop'),fi=document.getElementById('fi');
@@ -1087,6 +1102,18 @@ function clearAnalysisCache(){
 }
 window.clearAnalysisCache=clearAnalysisCache;
 
+function refreshAnalysis(){
+  var cache=getCacheInfo();
+  var debut=cache&&cache.debut||document.getElementById('apDebut').value;
+  var fin=cache&&cache.fin||document.getElementById('apFin').value;
+  if(debut&&fin){
+    var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
+    if(d1)d1.value=debut;if(d2)d2.value=fin;
+    launchApiAnalysis();
+  }
+}
+window.refreshAnalysis=refreshAnalysis;
+
 function loadCacheAndShow(){
   var cache=getCacheInfo();if(!cache)return;
   restoreFromCache(cache);
@@ -1094,6 +1121,7 @@ function loadCacheAndShow(){
   if(uz)uz.style.display='none';
   if(dd)dd.style.display='block';
   var bk=document.getElementById('backToUpload');if(bk)bk.style.display='inline';
+  var br=document.getElementById('btnRefresh');if(br)br.style.display='inline';
   window.scrollTo(0,0);
   buildTabs();buildCatTabs();buildFpBar();render();
 }
@@ -1300,6 +1328,7 @@ async function launchApiAnalysis(){
     if(uz)uz.style.display='none';
     if(dd)dd.style.display='block';
     var bk=document.getElementById('backToUpload');if(bk)bk.style.display='inline';
+    var br=document.getElementById('btnRefresh');if(br)br.style.display='inline';
     window.scrollTo(0,0);
     buildTabs();buildCatTabs();buildFpBar();render();
 
