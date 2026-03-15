@@ -2088,7 +2088,7 @@ function renderPerfGlobal(el){
      cost:gDet.poisson?gDet.poisson.cost:0}
   ];
   for(var cmi=0;cmi<catMB.length;cmi++) catMB[cmi].mb=catMB[cmi].ca-catMB[cmi].cost;
-  var posMBtot=0; for(var cmi2=0;cmi2<catMB.length;cmi2++){if(catMB[cmi2].mb>0)posMBtot+=catMB[cmi2].mb;}
+  var posMBtot=0,catMBSum=0; for(var cmi2=0;cmi2<catMB.length;cmi2++){catMBSum+=catMB[cmi2].mb;if(catMB[cmi2].mb>0)posMBtot+=catMB[cmi2].mb;}
   h+='<div style="margin:16px 0 12px">';
   h+='<div class="st" style="font-size:11px;margin-bottom:8px">\ud83d\udcca Contribution par cat\u00e9gorie \u2014 Marge Brute</div>';
   if(posMBtot>0){
@@ -2113,7 +2113,7 @@ function renderPerfGlobal(el){
   h+='<div class="tw"><table><thead><tr><th style="text-align:left">Cat\u00e9gorie</th><th>CA</th><th>Co\u00fbt Achat</th><th>Marge Brute</th><th>Contribution</th></tr></thead><tbody>';
   for(var cmi5=0;cmi5<catMB.length;cmi5++){
     var cm=catMB[cmi5];
-    var cmContr=gMB!==0?(cm.mb/gMB*100):0;
+    var cmContr=catMBSum!==0?(cm.mb/catMBSum*100):0;
     var cmCol=cm.mb>=0?'var(--t)':'var(--r2)';
     h+='<tr><td style="font-weight:600">'+cm.lbl+'</td><td style="color:var(--b2)">'+FK(Math.round(cm.ca))+'</td><td style="color:var(--o2)">'+FK(Math.round(cm.cost))+'</td><td style="font-weight:700;color:'+cmCol+'">'+FK(Math.round(cm.mb))+'</td><td style="color:'+cmCol+';font-weight:700">'+(gMB!==0?F(cmContr,1)+'%':'\u2014')+'</td></tr>';
   }
