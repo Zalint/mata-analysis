@@ -297,6 +297,8 @@ var PRIX_PDV={}; /* override per pdv: {'Keur Massar':{poulet:1910},...} */
 /* Dynamic margin mode: prix_achat = avg_sell_price × (1 - marge%) */
 var MARGE_MODE={poulet:false,agneau:false};
 var MARGE_PCT={poulet:20,agneau:20};
+var MARGE_MODE_PDV={}; /* {pdv:{poulet:bool,agneau:bool}} */
+var MARGE_PCT_PDV={};  /* {pdv:{poulet:num,agneau:num}} */
 var CHARGES={
   'O.Foire':{sal_com:100000,nb_com:2,sal_bou:150000,nb_bou:2,loyer:500000,elec:150000,internet:10000,autres:0},
   'Keur Massar':{sal_com:100000,nb_com:1,sal_bou:150000,nb_bou:1,loyer:150000,elec:25000,internet:5000,autres:0},
@@ -393,10 +395,10 @@ var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 /* Abats product names (for Abattage PdV only) */
 var ABATS_PRODS=['Abats','Foie','Yell'];
 
-/* Weighted average selling price across all PdVs for a category (used by margin mode) */
-function getAvgSellPrice(cat){
+/* Weighted average selling price for a category — scoped to one PdV or all */
+function getAvgSellPrice(cat,pdv){
   var totF=0,totQ=0;
-  var pdvs=Object.keys(DATA);
+  var pdvs=pdv?[pdv]:Object.keys(DATA);
   for(var i=0;i<pdvs.length;i++){
     var ss=getSellStats(pdvs[i]);
     if(cat==='poulet'){
@@ -409,7 +411,7 @@ function getAvgSellPrice(cat){
   }
   return totQ>0?totF/totQ:0;
 }
-/* Apply margin mode: update PRIX for poulet/agneau if marge mode is on */
+/* Apply margin mode globally and per-PdV */
 function applyMargeMode(){
   ['poulet','agneau'].forEach(function(cat){
     if(MARGE_MODE[cat]){
@@ -417,6 +419,19 @@ function applyMargeMode(){
       if(avg>0)PRIX[cat]=Math.round(avg*(1-MARGE_PCT[cat]/100));
     }
   });
+  var pdvs=Object.keys(MARGE_MODE_PDV);
+  for(var i=0;i<pdvs.length;i++){
+    var pdv=pdvs[i];
+    ['poulet','agneau'].forEach(function(cat){
+      if(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][cat]){
+        var avg=getAvgSellPrice(cat,pdv);
+        if(avg>0){
+          if(!PRIX_PDV[pdv])PRIX_PDV[pdv]={};
+          PRIX_PDV[pdv][cat]=Math.round(avg*(1-(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][cat]||20)/100));
+        }
+      }
+    });
+  }
 }
 
 /* Compute cost for one day: sum théo qty × prix achat per category, return detail */
@@ -1676,19 +1691,20 @@ function renderPrixInputs(pdv){
     var k=cats[ci];
     var effPx=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined?PRIX_PDV[pdv][k]:PRIX[k];
     var isOverride=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined;
-    var hasMarge=!pdv&&(k==='poulet'||k==='agneau');
-    var margeOn=hasMarge&&MARGE_MODE[k];
-    var avgPx=margeOn?getAvgSellPrice(k):0;
+    var hasMarge=(k==='poulet'||k==='agneau');
+    var margeOn=hasMarge&&(pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k]);
+    var margePct=hasMarge?(pdv?(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][k]!=null?MARGE_PCT_PDV[pdv][k]:20):MARGE_PCT[k]):20;
+    var avgPx=margeOn?getAvgSellPrice(k,pdv||undefined):0;
     h+='<div class="pp">';
     h+='<label style="color:'+colors[ci]+'">'+icons[ci]+' '+labels[ci];
-    if(hasMarge)h+=' <input type="checkbox" class="pxMrgCb" data-c="'+k+'"'+(margeOn?' checked':'')+' style="vertical-align:middle;accent-color:'+colors[ci]+';cursor:pointer" title="Mode marge : prix achat = prix vente moyen \u00d7 (1 \u2212 marge%)">';
+    if(hasMarge)h+=' <input type="checkbox" class="pxMrgCb" data-c="'+k+'"'+(pdv?' data-pdv="'+pdv+'"':'')+(margeOn?' checked':'')+' style="vertical-align:middle;accent-color:'+colors[ci]+';cursor:pointer" title="Mode marge : prix achat = prix vente moyen \u00d7 (1 \u2212 marge%)">';
     h+='</label>';
     h+='<input type="number" class="pxI" data-c="'+k+'"'+(pdv?' data-pdv="'+pdv+'"':'')+' value="'+effPx+'" min="0" step="100"'+(margeOn?' readonly style="opacity:.5;cursor:not-allowed'+(isOverride?';border-color:#7c3aed;background:#1a1035':'')+'"':(isOverride?' style="border-color:#7c3aed;background:#1a1035"':''))+'>';
     h+='<span class="u">'+units[ci]+'</span>';
     if(isOverride&&!margeOn)h+='<span style="font-size:7px;color:#a78bfa;cursor:pointer" class="pxRst" data-c="'+k+'" data-pdv="'+pdv+'" title="R\u00e9initialiser au prix global ('+PRIX[k]+')">\u21a9</span>';
     if(hasMarge){
-      h+='<input type="number" class="pxMrgPct" data-c="'+k+'" value="'+MARGE_PCT[k]+'" min="0" max="100" step="1" style="'+(margeOn?'':'display:none;')+'width:42px;margin-left:4px;background:var(--s2);border:1px solid '+(margeOn?colors[ci]:'var(--bd)')+';color:'+colors[ci]+';font-family:JetBrains Mono;font-size:10px;padding:2px 4px;border-radius:3px;text-align:right" title="Marge %">';
-      h+='<span class="pxMrgU" data-c="'+k+'" style="'+(margeOn?'':'display:none;')+'font-size:8px;color:var(--txd)">% \u2192 <span class="pxMrgPv" data-c="'+k+'">'+(margeOn?FK(avgPx):'')+'</span> F/vte</span>';
+      h+='<input type="number" class="pxMrgPct" data-c="'+k+'"'+(pdv?' data-pdv="'+pdv+'"':'')+' value="'+margePct+'" min="0" max="100" step="1" style="'+(margeOn?'':'display:none;')+'width:42px;margin-left:4px;background:var(--s2);border:1px solid '+(margeOn?colors[ci]:'var(--bd)')+';color:'+colors[ci]+';font-family:JetBrains Mono;font-size:10px;padding:2px 4px;border-radius:3px;text-align:right" title="Marge %">';
+      h+='<span class="pxMrgU" data-c="'+k+'" style="'+(margeOn?'':'display:none;')+'font-size:8px;color:var(--txd)">% \u2192 <span class="pxMrgPv" data-c="'+k+'"'+(pdv?' data-pdv="'+pdv+'"':'')+'>'+( margeOn?FK(avgPx):'')+'</span> F/vte</span>';
     }
     h+='</div>';
   }
@@ -1742,29 +1758,43 @@ function bindPrixInputs(){
   /* Marge mode checkbox */
   document.querySelectorAll('.pxMrgCb').forEach(function(cb){
     cb.addEventListener('change',function(){
-      var k=this.dataset.c;
-      MARGE_MODE[k]=this.checked;
-      if(this.checked){applyMargeMode();}
+      var k=this.dataset.c,pdv=this.dataset.pdv;
+      if(pdv){
+        if(!MARGE_MODE_PDV[pdv])MARGE_MODE_PDV[pdv]={};
+        MARGE_MODE_PDV[pdv][k]=this.checked;
+        if(!this.checked&&PRIX_PDV[pdv]){delete PRIX_PDV[pdv][k];}
+      }else{
+        MARGE_MODE[k]=this.checked;
+      }
+      if(this.checked)applyMargeMode();
       render();
     });
   });
   /* Marge % input */
   document.querySelectorAll('.pxMrgPct').forEach(function(inp){
     inp.addEventListener('input',function(){
-      var k=this.dataset.c;
-      MARGE_PCT[k]=parseFloat(this.value)||0;
-      if(MARGE_MODE[k]){
+      var k=this.dataset.c,pdv=this.dataset.pdv;
+      var val=parseFloat(this.value)||0;
+      if(pdv){
+        if(!MARGE_PCT_PDV[pdv])MARGE_PCT_PDV[pdv]={};
+        MARGE_PCT_PDV[pdv][k]=val;
+      }else{
+        MARGE_PCT[k]=val;
+      }
+      var isOn=pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k];
+      if(isOn){
         applyMargeMode();
-        /* Update displayed avg sell price and prix achat live */
-        var avg=getAvgSellPrice(k);
-        var pvEl=document.querySelector('.pxMrgPv[data-c="'+k+'"]');
+        var avg=getAvgSellPrice(k,pdv||undefined);
+        var pvEl=document.querySelector('.pxMrgPv[data-c="'+k+'"]'+(pdv?'[data-pdv="'+pdv+'"]':''));
         if(pvEl)pvEl.textContent=FK(avg);
-        var pxInp=document.querySelector('.pxI[data-c="'+k+'"]:not([data-pdv])');
-        if(pxInp)pxInp.value=PRIX[k];
+        var pxInp=document.querySelector('.pxI[data-c="'+k+'"'+(pdv?'][data-pdv="'+pdv+'"':':not([data-pdv])')+']');
+        if(pxInp)pxInp.value=pdv?(PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]||''):PRIX[k];
       }
     });
     inp.addEventListener('change',function(){
-      if(MARGE_MODE[this.dataset.c])render();
+      var k=this.dataset.c,pdv=this.dataset.pdv;
+      var isOn=pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k];
+      if(isOn)render();
     });
   });
   document.querySelectorAll('.ppI').forEach(function(inp){
