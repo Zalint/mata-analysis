@@ -2075,7 +2075,7 @@ function renderPerfGlobal(el){
   var catMB=[
     {lbl:'\ud83e\udd69 Bovin',color:'#dc2626',
      ca:(allSell.bovin?allSell.bovin.fcfa:0)+(allSell.veau?allSell.veau.fcfa:0)+(allSell.abats?allSell.abats.fcfa:0),
-     cost:(gDet.bovin?gDet.bovin.cost:0)+(gDet.veau?gDet.veau.cost:0)},
+     cost:(gDet.bovin?gDet.bovin.cost:0)+(gDet.veau?gDet.veau.cost:0)+(gDet.fraisAb||0)},
     {lbl:'\ud83c\udf57 Volaille',color:'#d97706',
      ca:(allSell.poulet?allSell.poulet.fcfa:0)+(allSell.poulet_dec?allSell.poulet_dec.fcfa:0),
      cost:gDet.poulet?gDet.poulet.cost:0},
@@ -2671,7 +2671,7 @@ function renderSim(el){
   var simAllSell={bovin:{fcfa:0,qty:0},veau:{fcfa:0,qty:0},abats:{fcfa:0,qty:0},poulet:{fcfa:0,qty:0},poulet_dec:{fcfa:0,qty:0},agneau_pur:{fcfa:0,qty:0},laxass:{fcfa:0,qty:0},patte:{fcfa:0,qty:0},agneau:{fcfa:0,qty:0},poisson:{fcfa:0,qty:0}};
   for(var sasi=0;sasi<pdvRows.length;sasi++){var sass=pdvRows[sasi].ss;var sask=Object.keys(sass||{});for(var saski=0;saski<sask.length;saski++){if(simAllSell[sask[saski]]){simAllSell[sask[saski]].fcfa+=sass[sask[saski]].fcfa;simAllSell[sask[saski]].qty+=sass[sask[saski]].qty;}}}
   var simCatMB=[
-    {lbl:'\ud83e\udd69 Bovin',color:'#dc2626',ca:(simAllSell.bovin?simAllSell.bovin.fcfa:0)+(simAllSell.veau?simAllSell.veau.fcfa:0)+(simAllSell.abats?simAllSell.abats.fcfa:0)+simDeltaCat.bovin,cost:(simGDet.bovin?simGDet.bovin.cost:0)+(simGDet.veau?simGDet.veau.cost:0)},
+    {lbl:'\ud83e\udd69 Bovin',color:'#dc2626',ca:(simAllSell.bovin?simAllSell.bovin.fcfa:0)+(simAllSell.veau?simAllSell.veau.fcfa:0)+(simAllSell.abats?simAllSell.abats.fcfa:0)+simDeltaCat.bovin,cost:(simGDet.bovin?simGDet.bovin.cost:0)+(simGDet.veau?simGDet.veau.cost:0)+(simGDet.fraisAb||0)},
     {lbl:'\ud83c\udf57 Volaille',color:'#d97706',ca:(simAllSell.poulet?simAllSell.poulet.fcfa:0)+(simAllSell.poulet_dec?simAllSell.poulet_dec.fcfa:0)+simDeltaCat.volaille,cost:simGDet.poulet?simGDet.poulet.cost:0},
     {lbl:'\ud83d\udc11 Ovin',color:'#6366f1',ca:(simAllSell.agneau_pur?simAllSell.agneau_pur.fcfa:0)+(simAllSell.laxass?simAllSell.laxass.fcfa:0)+(simAllSell.patte?simAllSell.patte.fcfa:0)+(simAllSell.agneau?simAllSell.agneau.fcfa:0)+simDeltaCat.ovin,cost:simGDet.agneau?simGDet.agneau.cost:0},
     {lbl:'\ud83d\udc1f Poisson',color:'#06b6d4',ca:(simAllSell.poisson?simAllSell.poisson.fcfa:0)+simDeltaCat.poisson,cost:simGDet.poisson?simGDet.poisson.cost:0}
