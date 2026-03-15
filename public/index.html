@@ -161,6 +161,11 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
       <button id="apBtn" onclick="launchApiAnalysis()">&#128640; Lancer l&rsquo;analyse</button>
     </div>
     <div id="apStatus"></div>
+    <div id="apCache" style="margin-top:8px;display:none;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="apCacheLbl" style="font-size:9px;color:var(--g2);font-family:'JetBrains Mono',monospace"></span>
+      <button onclick="window.loadCacheAndShow()" style="font-size:9px;padding:3px 10px;background:#22c55e20;border:1px solid #22c55e40;color:var(--g2);border-radius:5px;cursor:pointer">&#9654; Charger</button>
+      <button onclick="window.clearAnalysisCache()" style="font-size:9px;padding:3px 10px;background:var(--s2);border:1px solid var(--bd);color:var(--r2);border-radius:5px;cursor:pointer">&#128465; Vider le cache</button>
+    </div>
   </div>
   <div style="margin-bottom:12px;text-align:center;font-size:9px;color:var(--tx3)">&#8213; ou importer manuellement les fichiers Excel ci-dessous &#8213;</div>
   <div class="drop" id="drop"><div class="ic">&#128202;</div><div class="lb">Glissez le <b>.xlsx</b> ici ou cliquez</div><input type="file" id="fi" accept=".xlsx,.xls"></div>
@@ -216,7 +221,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="D">
   <div class="hd">
-    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Nouvelle p&eacute;riode</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
+    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Nouvelle p&eacute;riode</a><a href="#" onclick="clearAnalysisCache();return false;" style="margin-left:8px;font-size:10px;color:var(--r2);text-decoration:none;opacity:.6" title="Vider le cache localStorage">&#128465;</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
     <div class="ctrl" id="fpBar"></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -549,6 +554,7 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
   var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
   if(d1)d1.value=y+'-'+m+'-01';
   if(d2)d2.value=yy+'-'+ym+'-'+yd;
+  showCacheBanner();
 })();
 
 var drop=document.getElementById('drop'),fi=document.getElementById('fi');
@@ -992,6 +998,75 @@ function buildFpBar(){
   document.getElementById('btnSave').addEventListener('click',saveSession);
 }
 /*══════ API PERIOD ANALYSIS ══════*/
+var MATA_CACHE_KEY='mata_analysis_cache';
+
+function saveToCache(debut,fin){
+  try{
+    var dataSerial={};
+    var pdvs=Object.keys(DATA);
+    for(var i=0;i<pdvs.length;i++){
+      var pdv=pdvs[i];
+      dataSerial[pdv]=DATA[pdv].map(function(day){
+        var d=Object.assign({},day);
+        d.date=day.date?day.date.toISOString():null;
+        return d;
+      });
+    }
+    localStorage.setItem(MATA_CACHE_KEY,JSON.stringify({
+      DATA:dataSerial,VENTES_DATA:VENTES_DATA,PACK_DATA:PACK_DATA,
+      PRIX:{bovin:PRIX.bovin,veau:PRIX.veau,poulet:PRIX.poulet,agneau:PRIX.agneau,poisson:PRIX.poisson},
+      debut:debut,fin:fin,savedAt:new Date().toISOString()
+    }));
+    return true;
+  }catch(e){console.error('Cache save:',e);return false;}
+}
+
+function restoreFromCache(cache){
+  var pdvs=Object.keys(cache.DATA||{});
+  for(var i=0;i<pdvs.length;i++){
+    DATA[pdvs[i]]=cache.DATA[pdvs[i]].map(function(day){
+      if(day.date)day.date=new Date(day.date);return day;
+    });
+  }
+  if(cache.VENTES_DATA)VENTES_DATA=cache.VENTES_DATA;
+  if(cache.PACK_DATA)PACK_DATA=cache.PACK_DATA;
+  if(cache.PRIX){PRIX.bovin=cache.PRIX.bovin;PRIX.veau=cache.PRIX.veau;PRIX.poulet=cache.PRIX.poulet;PRIX.agneau=cache.PRIX.agneau;PRIX.poisson=cache.PRIX.poisson;}
+}
+
+function getCacheInfo(){
+  try{var raw=localStorage.getItem(MATA_CACHE_KEY);return raw?JSON.parse(raw):null;}catch(e){return null;}
+}
+
+function clearAnalysisCache(){
+  localStorage.removeItem(MATA_CACHE_KEY);
+  var el=document.getElementById('apCache');if(el)el.style.display='none';
+}
+window.clearAnalysisCache=clearAnalysisCache;
+
+function loadCacheAndShow(){
+  var cache=getCacheInfo();if(!cache)return;
+  restoreFromCache(cache);
+  var uz=document.getElementById('UZ'),dd=document.getElementById('D');
+  if(uz)uz.style.display='none';
+  if(dd)dd.style.display='block';
+  var bk=document.getElementById('backToUpload');if(bk)bk.style.display='inline';
+  window.scrollTo(0,0);
+  buildTabs();buildCatTabs();buildFpBar();render();
+}
+window.loadCacheAndShow=loadCacheAndShow;
+
+function showCacheBanner(){
+  var cache=getCacheInfo();
+  var el=document.getElementById('apCache');
+  if(!cache||!el)return;
+  var saved=new Date(cache.savedAt);
+  var mins=Math.round((Date.now()-saved.getTime())/60000);
+  var ago=mins<60?(mins+'min'):Math.round(mins/60)+'h';
+  var lbl=document.getElementById('apCacheLbl');
+  if(lbl)lbl.textContent='\uD83D\uDCBE Cache: '+cache.debut+' → '+cache.fin+' (sauvé il y a '+ago+')';
+  el.style.display='flex';
+}
+
 /* Category mapping: reconciliation product name → internal cat string */
 var RECON_CAT={
   'Boeuf':'Bovin','Veau':'Bovin','Poulet':'Volaille',
@@ -1168,6 +1243,7 @@ async function launchApiAnalysis(){
     var nPdvs=Object.keys(DATA).length;
     var nDays=0;Object.keys(DATA).forEach(function(p){nDays+=DATA[p].length;});
     var nVentes=Object.keys(VENTES_DATA.orders).length;
+    saveToCache(debut,fin);
     apStatus('\u2705 '+nPdvs+' PdV, '+nDays+' jours, '+nVentes+' ventes charg\u00e9s — Boeuf: '+pxBoeuf+' FCFA/kg · Veau: '+pxVeau+' FCFA/kg','ok');
 
   }catch(err){
