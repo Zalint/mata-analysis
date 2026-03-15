@@ -3326,12 +3326,125 @@ function exportPDF(){
 var chatHistory=[];
 var chatOpen=false;
 
+/* ── Calculation logic system prompt ── */
+var MATA_SYSTEM_PROMPT=[
+  'Tu es l\'assistant analytique de Mata Group SA, une entreprise de distribution de viande au Sénégal avec des points de vente à O.Foire, Keur Massar, Mbao, Sacre Coeur et un site d\'Abattage.',
+  '',
+  '## TES CAPACITÉS',
+  'Tu as accès à 4 outils pour interroger les APIs en temps réel :',
+  '- get_achats_boeuf : données d\'achats boeuf/veau (prix par kg, quantités)',
+  '- get_ventes : commandes de vente détaillées (produits, clients, PdV, montants)',
+  '- get_reconciliation : réconciliation stock vs ventes par PdV et produit',
+  '- get_packs : ventes de packs (compositions, quantités, valeurs)',
+  '',
+  '## LOGIQUE DE CALCUL',
+  '',
+  '### CA (Chiffre d\'Affaires)',
+  '- CA journalier = cashR = somme des ventesValeur (réconciliation) pour ce jour/PdV',
+  '- CA effectif = cashR + revenu_supplémentaire_mensuel / 30',
+  '- GLOBAL CA = somme sur tous les PdV et jours',
+  '',
+  '### Coût d\'achat (calcCostDay)',
+  'Pour chaque produit (quantité théorique de réconciliation) :',
+  '- Boeuf : qty_théo × PRIX.bovin (F/kg) — prix moyen pondéré depuis achats',
+  '- Veau : qty_théo × PRIX.veau (F/kg)',
+  '- Poulet entier : qty_théo × PRIX.poulet (F/pièce)',
+  '- Découpes poulet : qty_théo × PRIX.poulet × 1.5 (conversion pcs→kg)',
+  '- Agneau / Ovin : qty_théo × PRIX.agneau (F/kg)',
+  '- Poisson : qty_théo × POISSON_CONFIG[espèce].achat — prix spécifique par espèce',
+  '  Espèces: Dorade, Seud, Sompote, Beurre, Crevettes, Thiof',
+  '- Abattage PdV : coût = frais_abattage du jour (issu des achats)',
+  '- Pack : coût = (CA_pack / CA_total_packs_du_jour) × coût_composition_total',
+  '',
+  '### Freinte (pertes)',
+  '- Pourcentage paramétrable par catégorie (Boeuf, Veau, Volaille, Ovin, Poisson)',
+  '- Augmente le coût : coût_avec_freinte = coût × (1 + freinte%)',
+  '',
+  '### Marge Brute & Nette',
+  '- Marge Brute = CA - Coût d\'achat',
+  '- Charges mensuelles = sal_com×nb_com + sal_bou×nb_bou + loyer + élec + internet',
+  '- Charges journalières = charges_mensuelles / 30',
+  '- Marge Nette = Marge Brute - (charges_journalières × nb_jours)',
+  '',
+  '### Charges par PdV (valeurs actuelles)',
+  '- O.Foire : com=100k×1.5=150k, bou=150k×2=300k, loyer=500k, élec=150k, internet=10k → Total=1 110k/mois',
+  '- Keur Massar : com=100k×1, bou=150k×1, loyer=150k, élec=25k, internet=5k → Total=430k/mois',
+  '- Mbao : com=100k×1, bou=150k×1, loyer=100k, élec=25k, internet=5k → Total=380k/mois',
+  '- Sacre Coeur : com=100k×1, bou=150k×1, loyer=70k, élec=25k, internet=5k → Total=350k/mois',
+  '',
+  '### Mode Marge Dynamique (Poulet/Agneau)',
+  '- Si activé : prix_achat = prix_vente_moyen × (1 - marge%)',
+  '- Défaut poulet : 15% activé. Ex: si vente moyenne = 2200 F/pcs → achat = 2200 × 0.85 = 1870 F/pcs',
+  '',
+  '### Prix de Vente Moyen',
+  '- Boeuf & Veau : calculé depuis VENTES_DATA (commandes réelles), séparant "en gros" et "en détail"',
+  '- Poisson : depuis VENTES_DATA, par espèce',
+  '- Poulet/Agneau : depuis réconciliation (cashR / qty)',
+  '- Spread = prix_vente_moyen/kg - prix_achat/kg',
+  '- Spread % = spread / prix_vente_moyen × 100',
+  '',
+  '### Prix d\'achat Boeuf/Veau',
+  '- Moyenne pondérée : Σ(prix_achat_kg_sans_abats × nbr_kg) / Σ(nbr_kg)',
+  '- Si pas de données veau : utilise le prix boeuf comme fallback',
+  '',
+  '## INSTRUCTIONS',
+  'Réponds toujours en français. Sois précis avec les chiffres. Utilise **gras** pour les nombres clés.',
+  'Si l\'utilisateur demande des données spécifiques, utilise les outils pour les récupérer en temps réel.',
+  'Si des données sont déjà chargées (fournies dans le contexte), utilise-les directement sans appeler les APIs.',
+  'Pour les dates, utilise les plages disponibles dans le contexte chargé.'
+].join('\n');
+
+/* ── API tools for Claude ── */
+var MATA_TOOLS=[
+  {name:'get_achats_boeuf',
+   description:'Récupère les données d\'achats de boeuf et veau pour une période. Retourne prix d\'achat par kg (sans abats), quantités, coût total par bête.',
+   input_schema:{type:'object',properties:{
+     startDate:{type:'string',description:'Date début format YYYY-MM-DD'},
+     endDate:{type:'string',description:'Date fin format YYYY-MM-DD'}
+   },required:['startDate','endDate']}},
+  {name:'get_ventes',
+   description:'Récupère les commandes de vente détaillées : produits vendus, quantités, montants, clients, points de vente.',
+   input_schema:{type:'object',properties:{
+     dateDebut:{type:'string',description:'Date début format YYYY-MM-DD'},
+     dateFin:{type:'string',description:'Date fin format YYYY-MM-DD'}
+   },required:['dateDebut','dateFin']}},
+  {name:'get_reconciliation',
+   description:'Récupère la réconciliation stock vs ventes par PdV et produit : quantités théoriques, réelles, écarts, valeurs FCFA.',
+   input_schema:{type:'object',properties:{
+     startDate:{type:'string',description:'Date début format DD/MM/YYYY'},
+     endDate:{type:'string',description:'Date fin format DD/MM/YYYY'}
+   },required:['startDate','endDate']}},
+  {name:'get_packs',
+   description:'Récupère les données de ventes de packs par jour : compositions, quantités vendues, valeur totale.',
+   input_schema:{type:'object',properties:{
+     start_date:{type:'string',description:'Date début format YYYY-MM-DD'},
+     end_date:{type:'string',description:'Date fin format YYYY-MM-DD'}
+   },required:['start_date','end_date']}}
+];
+
+async function executeTool(name,inp){
+  try{
+    var url;
+    if(name==='get_achats_boeuf')url='/api/external/achats-boeuf?startDate='+inp.startDate+'&endDate='+inp.endDate;
+    else if(name==='get_ventes')url='/api/external/ventes?dateDebut='+inp.dateDebut+'&dateFin='+inp.dateFin;
+    else if(name==='get_reconciliation')url='/api/external/reconciliation?startDate='+encodeURIComponent(inp.startDate)+'&endDate='+encodeURIComponent(inp.endDate);
+    else if(name==='get_packs')url='/api/external/pack?start_date='+inp.start_date+'&end_date='+inp.end_date;
+    else return JSON.stringify({error:'Outil inconnu: '+name});
+    var r=await fetch(url);
+    var d=await r.json();
+    /* Summarize large responses to avoid context overload */
+    var str=JSON.stringify(d);
+    if(str.length>8000)str=str.slice(0,8000)+'...[tronqué]';
+    return str;
+  }catch(e){return JSON.stringify({error:e.message});}
+}
+
 function toggleChat(){
   chatOpen=!chatOpen;
   var p=document.getElementById('chatPanel');
   p.style.display=chatOpen?'flex':'none';
   if(chatOpen&&!chatHistory.length){
-    addMsg('assistant','Bonjour ! Je suis l\u2019assistant Mata. Pose-moi une question sur tes donn\u00e9es (marges, co\u00fbts, classement, produits...)');
+    addMsg('assistant','Bonjour\u00a0! Je suis l\u2019assistant Mata.\nJe peux analyser tes donn\u00e9es charg\u00e9es, expliquer les calculs (marges, co\u00fbts, spread...) et interroger les APIs en temps r\u00e9el.\nPose-moi ta question\u00a0!');
   }
 }
 
@@ -3341,7 +3454,7 @@ function addMsg(role,text){
   var div=document.createElement('div');
   div.style.cssText='margin:6px 0;display:flex;justify-content:'+(isUser?'flex-end':'flex-start');
   var bubble=document.createElement('div');
-  bubble.style.cssText='max-width:85%;padding:8px 12px;border-radius:'+(isUser?'10px 10px 2px 10px':'10px 10px 10px 2px')+';font-size:10px;line-height:1.5;background:'+(isUser?'#7c3aed':'#1e293b')+';color:'+(isUser?'#fff':'#e2e8f0')+';border:1px solid '+(isUser?'#7c3aed':'#334155');
+  bubble.style.cssText='max-width:88%;padding:8px 12px;border-radius:'+(isUser?'10px 10px 2px 10px':'10px 10px 10px 2px')+';font-size:10px;line-height:1.5;background:'+(isUser?'#7c3aed':'#1e293b')+';color:'+(isUser?'#fff':'#e2e8f0')+';border:1px solid '+(isUser?'#7c3aed':'#334155');
   bubble.innerHTML=text.replace(/\*\*(.*?)\*\*/g,'<b style="color:#a78bfa">$1</b>').replace(/\n/g,'<br>');
   div.appendChild(bubble);
   el.appendChild(div);
@@ -3350,17 +3463,25 @@ function addMsg(role,text){
 
 function buildContext(){
   var pdvs=Object.keys(DATA||{});
-  if(!pdvs.length)return'Aucune donn\u00e9e charg\u00e9e.';
-  var ctx='MATA GROUP SA \u2014 Donn\u00e9es charg\u00e9es:\n';
+  var d1v=document.getElementById('apDebut'),d2v=document.getElementById('apFin');
+  var ctx='=== DONNÉES MATA GROUP SA CHARGÉES ===\n';
+  if(d1v&&d1v.value)ctx+='Période: '+d1v.value+' → '+(d2v?d2v.value:'')+'\n';
+  if(!pdvs.length){ctx+='Aucune donnée chargée.\n';return ctx;}
   ctx+='Points de vente: '+pdvs.join(', ')+'\n';
-  ctx+='Prix achat: Boeuf '+PRIX.bovin+' F/kg, Veau '+PRIX.veau+' F/kg, Poulet '+PRIX.poulet+' F/pcs, Agneau '+PRIX.agneau+' F/kg\n\n';
+  ctx+='Prix achat: Boeuf='+PRIX.bovin+' F/kg, Veau='+PRIX.veau+' F/kg, Poulet='+PRIX.poulet+' F/pcs, Agneau='+PRIX.agneau+' F/kg\n';
+  ctx+='Mode marge poulet: '+(MARGE_MODE.poulet?'OUI ('+MARGE_PCT.poulet+'%)':'NON')+', agneau: '+(MARGE_MODE.agneau?'OUI ('+MARGE_PCT.agneau+'%)':'NON')+'\n\n';
   var gCA=0,gCost=0,gChg=0;
   for(var i=0;i<pdvs.length;i++){
     var pdv=pdvs[i],days=DATA[pdv]||[];
     var ca=0,cost=0,nD=days.length,chg=getChargeDaily(pdv)*nD;
     for(var d=0;d<days.length;d++){ca+=effectiveCA(days[d],pdv);cost+=calcCostDay(days[d],pdv).total;}
     var mb=ca-cost,mn=mb-chg;
-    ctx+=pdv+': '+nD+'j, CA='+Math.round(ca)+', Co\u00fbt='+Math.round(cost)+', M.Brute='+Math.round(mb)+' ('+((ca?mb/ca*100:0).toFixed(1))+'%), Charges='+Math.round(chg)+', M.Nette='+Math.round(mn)+' ('+((ca?mn/ca*100:0).toFixed(1))+'%)\n';
+    var ss=getSellStats(pdv);
+    ctx+=pdv+' ('+nD+'j): CA='+Math.round(ca)+' FCFA, Coût='+Math.round(cost)+', MB='+Math.round(mb)+'('+((ca?mb/ca*100:0).toFixed(1))+'%), Charges='+Math.round(chg)+', MN='+Math.round(mn)+'('+((ca?mn/ca*100:0).toFixed(1))+'%)\n';
+    /* Sell stats */
+    var cats=['bovin','veau','poulet','agneau','poisson'];
+    var catL=['Boeuf','Veau','Poulet','Agneau','Poisson'];
+    for(var ci=0;ci<cats.length;ci++){var s=ss[cats[ci]];if(s&&s.qty>0)ctx+='  '+catL[ci]+': qty='+Math.round(s.qty)+', CA='+Math.round(s.fcfa)+', px_vente='+s.px+' F\n';}
     /* Top products */
     var pMap={};
     for(d=0;d<days.length;d++){
@@ -3368,22 +3489,24 @@ function buildContext(){
       var pks=Object.keys(days[d].prods||{});
       for(var k=0;k<pks.length;k++){
         var p=days[d].prods[pks[k]];if(!p)continue;
-        if(!pMap[pks[k]])pMap[pks[k]]={r:0,f:0,t:0};
-        pMap[pks[k]].r+=(p.reel||0);pMap[pks[k]].f+=(p.reelF||0);pMap[pks[k]].t+=(p.theo||0);
+        if(!pMap[pks[k]])pMap[pks[k]]={r:0,f:0};
+        pMap[pks[k]].r+=(p.reel||0);pMap[pks[k]].f+=(p.reelF||0);
       }
     }
-    var top=Object.keys(pMap).sort(function(a,b){return Math.abs(pMap[b].f)-Math.abs(pMap[a].f);}).slice(0,8);
-    ctx+='  Top produits: ';
-    for(var t=0;t<top.length;t++){var pm=pMap[top[t]];ctx+=top[t]+'(v='+Math.round(pm.r)+'kg,CA='+Math.round(pm.f)+') ';}
+    var top=Object.keys(pMap).sort(function(a,b){return pMap[b].f-pMap[a].f;}).slice(0,6);
+    ctx+='  Top: ';for(var t=0;t<top.length;t++){ctx+=top[t]+'('+Math.round(pMap[top[t]].r)+'kg/'+Math.round(pMap[top[t]].f)+'F) ';}
     ctx+='\n';
     gCA+=ca;gCost+=cost;gChg+=chg;
   }
   var gMB=gCA-gCost,gMN=gMB-gChg;
-  ctx+='\nGLOBAL: CA='+Math.round(gCA)+', Co\u00fbt='+Math.round(gCost)+', M.Brute='+Math.round(gMB)+' ('+((gCA?gMB/gCA*100:0).toFixed(1))+'%), Charges='+Math.round(gChg)+', M.Nette='+Math.round(gMN)+' ('+((gCA?gMN/gCA*100:0).toFixed(1))+'%)\n';
-  /* Sell prices */
-  for(i=0;i<pdvs.length;i++){
-    var ss=getSellStats(pdvs[i]);
-    if(ss.bovin&&ss.bovin.qty>0)ctx+=pdvs[i]+' prix vente boeuf: '+ss.bovin.px+' F/kg\n';
+  ctx+='\nGLOBAL: CA='+Math.round(gCA)+', Coût='+Math.round(gCost)+', MB='+Math.round(gMB)+'('+((gCA?gMB/gCA*100:0).toFixed(1))+'%), Charges='+Math.round(gChg)+', MN='+Math.round(gMN)+'('+((gCA?gMN/gCA*100:0).toFixed(1))+'%)\n';
+  /* Top clients */
+  if(VENTES_DATA&&VENTES_DATA.byClient){
+    var cls=Object.keys(VENTES_DATA.byClient);
+    var topCl=cls.sort(function(a,b){return VENTES_DATA.byClient[b].total-VENTES_DATA.byClient[a].total;}).slice(0,5);
+    ctx+='\nTop clients: ';
+    for(var tc=0;tc<topCl.length;tc++){var cl=VENTES_DATA.byClient[topCl[tc]];ctx+=cl.nom+'('+Math.round(cl.total)+' FCFA) ';}
+    ctx+='\n';
   }
   return ctx;
 }
@@ -3396,45 +3519,61 @@ function sendChat(){
   addMsg('user',q);
   chatHistory.push({role:'user',content:q});
 
-  /* Show typing indicator */
   var typingId='typing_'+Date.now();
   var el=document.getElementById('chatMsgs');
   var tDiv=document.createElement('div');
   tDiv.id=typingId;
   tDiv.style.cssText='margin:6px 0;display:flex;justify-content:flex-start';
-  tDiv.innerHTML='<div style="padding:8px 12px;border-radius:10px;font-size:10px;background:#1e293b;color:#64748b;border:1px solid #334155">Analyse en cours...</div>';
-  el.appendChild(tDiv);
-  el.scrollTop=el.scrollHeight;
+  tDiv.innerHTML='<div style="padding:8px 12px;border-radius:10px;font-size:10px;background:#1e293b;color:#64748b;border:1px solid #334155">&#x1F9E0; Analyse en cours\u2026</div>';
+  el.appendChild(tDiv);el.scrollTop=el.scrollHeight;
 
   var ctx=buildContext();
-  var messages=[
-    {role:'user',content:'Tu es l\u2019assistant analytique de Mata Group SA (distribution de viande au S\u00e9n\u00e9gal). Voici les donn\u00e9es actuelles:\n\n'+ctx+'\n\nR\u00e9ponds toujours en fran\u00e7ais, de mani\u00e8re concise et pr\u00e9cise. Utilise **gras** pour les chiffres cl\u00e9s. Si on te demande une analyse, structure ta r\u00e9ponse. Voici l\u2019historique:'},
-    {role:'assistant',content:'Compris. Je suis pr\u00eat \u00e0 analyser les donn\u00e9es Mata Group.'}
-  ];
+  var systemFull=MATA_SYSTEM_PROMPT+'\n\n'+ctx;
+  var messages=[];
   for(var h=0;h<chatHistory.length;h++)messages.push(chatHistory[h]);
 
-  fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      model:'claude-sonnet-4-20250514',
-      max_tokens:1000,
-      messages:messages
-    })
-  }).then(function(r){return r.json();})
-  .then(function(data){
-    var t2=document.getElementById(typingId);if(t2)t2.remove();
-    var txt='';
-    if(data.content){for(var c=0;c<data.content.length;c++){if(data.content[c].type==='text')txt+=data.content[c].text;}}
-    else if(data.error){txt='\u274c Erreur: '+(data.error.message||JSON.stringify(data.error));}
-    else{txt='\u274c R\u00e9ponse inattendue';}
-    addMsg('assistant',txt);
-    chatHistory.push({role:'assistant',content:txt});
-  })
-  .catch(function(err){
-    var t3=document.getElementById(typingId);if(t3)t3.remove();
-    addMsg('assistant','\u274c Erreur r\u00e9seau: '+err.message);
-  });
+  (async function(){
+    var reqMessages=messages.slice();
+    var maxIter=5;
+    try{
+      while(maxIter-->0){
+        var body={model:'claude-haiku-4-5-20251001',max_tokens:2048,system:systemFull,messages:reqMessages,tools:MATA_TOOLS};
+        var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        var data=await r.json();
+        if(data.error){throw new Error(data.error.message||JSON.stringify(data.error));}
+        if(data.stop_reason==='tool_use'){
+          /* Execute all tool calls */
+          var toolResults=[];
+          var assistantContent=data.content||[];
+          /* Update typing indicator */
+          var td=document.getElementById(typingId);
+          if(td)td.querySelector('div').innerHTML='&#x1F50D; Interrogation des APIs\u2026';
+          for(var ci2=0;ci2<assistantContent.length;ci2++){
+            var blk=assistantContent[ci2];
+            if(blk.type==='tool_use'){
+              var result=await executeTool(blk.name,blk.input);
+              toolResults.push({type:'tool_result',tool_use_id:blk.id,content:result});
+            }
+          }
+          reqMessages=reqMessages.concat([{role:'assistant',content:assistantContent},{role:'user',content:toolResults}]);
+        } else {
+          /* Final text response */
+          var txt='';
+          var cont=data.content||[];
+          for(var ci3=0;ci3<cont.length;ci3++){if(cont[ci3].type==='text')txt+=cont[ci3].text;}
+          txt=txt||'\u274c R\u00e9ponse vide';
+          var t2=document.getElementById(typingId);if(t2)t2.remove();
+          addMsg('assistant',txt);
+          chatHistory.push({role:'assistant',content:txt});
+          return;
+        }
+      }
+      throw new Error('Trop d\'it\u00e9rations outils');
+    }catch(e){
+      var t3=document.getElementById(typingId);if(t3)t3.remove();
+      addMsg('assistant','\u274c Erreur: '+e.message);
+    }
+  })();
 }
 
 /*══════ SESSION SAVE/LOAD ══════*/
@@ -3709,7 +3848,7 @@ window.sendChat=sendChat;
 <div id="chatBtn" onclick="toggleChat()" style="position:fixed;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px #0006;font-size:20px;z-index:300;transition:transform .2s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">&#x1F4AC;</div>
 <div id="chatPanel" style="display:none;position:fixed;bottom:80px;right:20px;width:420px;max-height:520px;background:#0f172a;border:1px solid #334155;border-radius:12px;box-shadow:0 8px 32px #000a;z-index:300;font-family:'Instrument Sans',sans-serif;overflow:hidden;flex-direction:column">
   <div style="padding:10px 14px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center">
-    <div><span style="font-size:14px">&#x1F916;</span> <b style="color:#e2e8f0;font-size:11px">Assistant Mata</b> <span style="font-size:8px;color:#64748b">Claude Sonnet</span></div>
+    <div><span style="font-size:14px">&#x1F916;</span> <b style="color:#e2e8f0;font-size:11px">Assistant Mata</b> <span style="font-size:8px;color:#64748b">Claude Haiku · </span><span style="font-size:8px;color:#22c55e">&#x1F50C; APIs</span></div>
     <span onclick="toggleChat()" style="color:#64748b;cursor:pointer;font-size:16px">&times;</span>
   </div>
   <div id="chatMsgs" style="flex:1;overflow-y:auto;padding:10px 14px;max-height:360px;min-height:200px"></div>

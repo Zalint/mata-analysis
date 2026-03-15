@@ -145,9 +145,12 @@ const server = http.createServer(async (req, res) => {
             'anthropic-version': '2023-06-01'
           },
           body: JSON.stringify({
-            model: parsed.model || 'claude-sonnet-4-20250514',
-            max_tokens: parsed.max_tokens || 1000,
-            messages: parsed.messages || []
+            model: parsed.model || 'claude-sonnet-4-5-20251001',
+            max_tokens: parsed.max_tokens || 4096,
+            messages: parsed.messages || [],
+            ...(parsed.system   && { system:       parsed.system }),
+            ...(parsed.tools    && { tools:         parsed.tools }),
+            ...(parsed.tool_choice && { tool_choice: parsed.tool_choice })
           })
         });
         const data = await apiRes.json();
