@@ -1163,7 +1163,7 @@ async function launchApiAnalysis(){
     if(dd)dd.style.display='block';
     var bk=document.getElementById('backToUpload');if(bk)bk.style.display='inline';
     window.scrollTo(0,0);
-    render();
+    buildTabs();buildCatTabs();buildFpBar();render();
 
     var nPdvs=Object.keys(DATA).length;
     var nDays=0;Object.keys(DATA).forEach(function(p){nDays+=DATA[p].length;});
