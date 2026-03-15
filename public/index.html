@@ -3492,8 +3492,9 @@ function loadSession(){
         var pending=[];
         function loadFileFromZip(key,callback){
           var fname=fnames[key];
-          if(!fname){callback(null);return;}
-          var f=zip.file(fname);
+          var f=fname?zip.file(fname):null;
+          /* Fallback: reconciliation can be found by pattern if name is missing */
+          if(!f&&key==='reconciliation'&&reconFile)f=reconFile;
           if(!f){callback(null);return;}
           f.async('arraybuffer').then(function(ab){callback(ab);}).catch(function(){callback(null);});
         }
