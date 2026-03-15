@@ -438,7 +438,7 @@ function applyMargeMode(){
   for(var i=0;i<pdvs.length;i++){
     var pdv=pdvs[i];
     ['poulet','agneau'].forEach(function(cat){
-      if(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][cat]){
+      if(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][cat]!=null?MARGE_MODE_PDV[pdv][cat]:MARGE_MODE[cat]){
         var avg=getAvgSellPrice(cat,pdv);
         if(avg>0){
           if(!PRIX_PDV[pdv])PRIX_PDV[pdv]={};
@@ -1776,7 +1776,7 @@ function renderPrixInputs(pdv){
     var effPx=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined?PRIX_PDV[pdv][k]:PRIX[k];
     var isOverride=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined;
     var hasMarge=(k==='poulet'||k==='agneau');
-    var margeOn=hasMarge&&(pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k]);
+    var margeOn=hasMarge&&(pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]!=null?MARGE_MODE_PDV[pdv][k]:MARGE_MODE[k]):MARGE_MODE[k]);
     var margePct=hasMarge?(pdv?(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][k]!=null?MARGE_PCT_PDV[pdv][k]:MARGE_PCT[k]):MARGE_PCT[k]):MARGE_PCT[k]||20;
     var avgPx=margeOn?getAvgSellPrice(k,pdv||undefined):0;
     if(k==='poisson'){
@@ -1875,7 +1875,7 @@ function bindPrixInputs(){
       }else{
         MARGE_PCT[k]=val;
       }
-      var isOn=pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k];
+      var isOn=pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]!=null?MARGE_MODE_PDV[pdv][k]:MARGE_MODE[k]):MARGE_MODE[k];
       if(isOn){
         applyMargeMode();
         var avg=getAvgSellPrice(k,pdv||undefined);
@@ -1887,7 +1887,7 @@ function bindPrixInputs(){
     });
     inp.addEventListener('change',function(){
       var k=this.dataset.c,pdv=this.dataset.pdv;
-      var isOn=pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k];
+      var isOn=pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]!=null?MARGE_MODE_PDV[pdv][k]:MARGE_MODE[k]):MARGE_MODE[k];
       if(isOn)render();
     });
   });
