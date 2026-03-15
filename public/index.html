@@ -3588,7 +3588,7 @@ function sendChat(){
     var maxIter=5;
     try{
       while(maxIter-->0){
-        var body={model:'claude-haiku-4-5-20251001',max_tokens:2048,system:systemFull,messages:reqMessages,tools:MATA_TOOLS};
+        var body={model:'gpt-4o-mini',max_tokens:2048,system:systemFull,messages:reqMessages,tools:MATA_TOOLS};
         var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         var data=await r.json();
         if(data.error){throw new Error(data.error.message||JSON.stringify(data.error));}

@@ -11,9 +11,57 @@ try {
 } catch(e) {}
 
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.ANTHROPIC_API_KEY || 'YOUR_API_KEY_HERE';
+const API_KEY = process.env.ANTHROPIC_API_KEY || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const AUTH_USER = process.env.USER || 'mata';
 const AUTH_PASS = process.env.PASSWORD || 'mata2026';
+
+/* ── Anthropic ↔ OpenAI translation helpers ── */
+function anthropicToOpenAI(parsed) {
+  const messages = [];
+  if (parsed.system) messages.push({ role: 'system', content: parsed.system });
+  for (const msg of (parsed.messages || [])) {
+    if (msg.role === 'user') {
+      if (Array.isArray(msg.content)) {
+        const texts = msg.content.filter(c => c.type === 'text');
+        const toolResults = msg.content.filter(c => c.type === 'tool_result');
+        if (texts.length) messages.push({ role: 'user', content: texts.map(t => t.text).join('\n') });
+        for (const tr of toolResults) {
+          messages.push({ role: 'tool', tool_call_id: tr.tool_use_id,
+            content: typeof tr.content === 'string' ? tr.content : JSON.stringify(tr.content) });
+        }
+      } else { messages.push({ role: 'user', content: msg.content }); }
+    } else if (msg.role === 'assistant') {
+      if (Array.isArray(msg.content)) {
+        const texts = msg.content.filter(c => c.type === 'text');
+        const toolUses = msg.content.filter(c => c.type === 'tool_use');
+        const aMsg = { role: 'assistant', content: texts.map(t => t.text).join('') || null };
+        if (toolUses.length) aMsg.tool_calls = toolUses.map(tu => ({
+          id: tu.id, type: 'function', function: { name: tu.name, arguments: JSON.stringify(tu.input) }
+        }));
+        messages.push(aMsg);
+      } else { messages.push({ role: 'assistant', content: msg.content }); }
+    }
+  }
+  const tools = (parsed.tools || []).map(t => ({
+    type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema }
+  }));
+  const req = { model: 'gpt-4o-mini', max_tokens: parsed.max_tokens || 4096, messages };
+  if (tools.length) req.tools = tools;
+  return req;
+}
+function openAIToAnthropic(data) {
+  if (!data.choices || !data.choices.length) return { error: { message: JSON.stringify(data) } };
+  const msg = data.choices[0].message;
+  const finish = data.choices[0].finish_reason;
+  const content = [];
+  if (msg.content) content.push({ type: 'text', text: msg.content });
+  for (const tc of (msg.tool_calls || [])) {
+    content.push({ type: 'tool_use', id: tc.id, name: tc.function.name,
+      input: JSON.parse(tc.function.arguments) });
+  }
+  return { stop_reason: finish === 'tool_calls' ? 'tool_use' : 'end_turn', content };
+}
 
 /* Session tokens (simple in-memory) */
 const sessions = new Set();
@@ -130,32 +178,22 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  /* Proxy API calls to Anthropic */
+  /* Proxy API calls — default: OpenAI gpt-4o-mini */
   if (req.method === 'POST' && req.url === '/api/chat') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
         const parsed = JSON.parse(body);
-        const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+        const openAIBody = anthropicToOpenAI(parsed);
+        const apiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': API_KEY,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: parsed.model || 'claude-sonnet-4-5-20251001',
-            max_tokens: parsed.max_tokens || 4096,
-            messages: parsed.messages || [],
-            ...(parsed.system   && { system:       parsed.system }),
-            ...(parsed.tools    && { tools:         parsed.tools }),
-            ...(parsed.tool_choice && { tool_choice: parsed.tool_choice })
-          })
-        });
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPENAI_API_KEY }
+        , body: JSON.stringify(openAIBody) });
         const data = await apiRes.json();
-        res.writeHead(apiRes.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
+        if (data.error) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: data.error })); return; }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(openAIToAnthropic(data)));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { message: err.message } }));
