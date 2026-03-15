@@ -1695,6 +1695,17 @@ function renderPrixInputs(pdv){
     var margeOn=hasMarge&&(pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]):MARGE_MODE[k]);
     var margePct=hasMarge?(pdv?(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][k]!=null?MARGE_PCT_PDV[pdv][k]:20):MARGE_PCT[k]):20;
     var avgPx=margeOn?getAvgSellPrice(k,pdv||undefined):0;
+    if(k==='poisson'){
+      /* Individual fish type entries instead of single Poisson box */
+      var pck2=Object.keys(POISSON_CONFIG);
+      for(var pfi=0;pfi<pck2.length;pfi++){
+        var pfn=pck2[pfi],pfv=POISSON_CONFIG[pfn];
+        h+='<div class="pp"><label style="color:#06b6d4">\ud83d\udc1f '+pfn+'</label>';
+        h+='<input type="number" class="pcA" data-p="'+pfn+'" value="'+pfv.achat+'" min="0" step="100">';
+        h+='<span class="u">F/kg</span></div>';
+      }
+      continue;
+    }
     h+='<div class="pp">';
     h+='<label style="color:'+colors[ci]+'">'+icons[ci]+' '+labels[ci];
     if(hasMarge)h+=' <input type="checkbox" class="pxMrgCb" data-c="'+k+'"'+(pdv?' data-pdv="'+pdv+'"':'')+(margeOn?' checked':'')+' style="vertical-align:middle;accent-color:'+colors[ci]+';cursor:pointer" title="Mode marge : prix achat = prix vente moyen \u00d7 (1 \u2212 marge%)">';
@@ -1717,14 +1728,13 @@ function renderPrixInputs(pdv){
     h+='<div class="ci"><span>'+pn+'</span><input class="ppI" data-p="'+pn+'" value="'+pv+'" type="number" min="0" step="50"></div>';
   }
   h+='</div></details>';
-  /* Poisson config */
-  h+='<details class="perfChg" style="margin-bottom:12px"><summary>\ud83d\udc1f Config Poisson (achat &amp; vente par produit)</summary><div style="margin-top:8px">';
-  h+='<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:8px;color:var(--tx3);padding:4px 8px">Produit</th><th style="font-size:8px;color:var(--o2);padding:4px 8px">Achat F/kg</th><th style="font-size:8px;color:var(--b2);padding:4px 8px">Vente F/kg</th><th style="font-size:8px;color:var(--g);padding:4px 8px">Spread</th></tr></thead><tbody>';
+  /* Poisson config — vente prices only (achat now in main bar) */
+  h+='<details class="perfChg" style="margin-bottom:12px"><summary>\ud83d\udc1f Prix de vente Poisson par produit</summary><div style="margin-top:8px">';
+  h+='<table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;font-size:8px;color:var(--tx3);padding:4px 8px">Produit</th><th style="font-size:8px;color:var(--b2);padding:4px 8px">Vente F/kg</th><th style="font-size:8px;color:var(--g);padding:4px 8px">Spread</th></tr></thead><tbody>';
   var pck=Object.keys(POISSON_CONFIG);
   for(var pci=0;pci<pck.length;pci++){
     var pcn=pck[pci],pcv=POISSON_CONFIG[pcn],spr=pcv.vente-pcv.achat;
     h+='<tr><td style="padding:3px 8px;font-size:10px;font-weight:600">'+pcn+'</td>';
-    h+='<td style="padding:3px 4px"><input class="pcA" data-p="'+pcn+'" value="'+pcv.achat+'" type="number" min="0" step="100" style="background:var(--s2);border:1px solid var(--bd);color:var(--o2);font-family:JetBrains Mono;font-size:10px;padding:2px 4px;border-radius:3px;width:65px;text-align:right"></td>';
     h+='<td style="padding:3px 4px"><input class="pcV" data-p="'+pcn+'" value="'+pcv.vente+'" type="number" min="0" step="100" style="background:var(--s2);border:1px solid var(--bd);color:var(--b2);font-family:JetBrains Mono;font-size:10px;padding:2px 4px;border-radius:3px;width:65px;text-align:right"></td>';
     h+='<td style="padding:3px 8px;font-family:JetBrains Mono;font-size:10px;color:'+(spr>=0?'var(--g)':'var(--r2)')+'">'+FS(spr)+'</td></tr>';
   }
