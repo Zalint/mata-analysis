@@ -118,6 +118,23 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 #apBtn:hover{opacity:.85}#apBtn:disabled{opacity:.7;cursor:not-allowed}
 .apSpin{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:apSpin .7s linear infinite;vertical-align:middle;margin-right:2px}
 @keyframes apSpin{to{transform:rotate(360deg)}}
+/* ── Mata loader overlay ── */
+#mataLoader{position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(11,17,32,.92);backdrop-filter:blur(6px)}
+#mataLoader.active{display:flex}
+.mataLogoWrap{position:relative;background:#fff;border-radius:20px;padding:24px 28px 16px;box-shadow:0 0 60px rgba(220,38,38,.35),0 0 120px rgba(220,38,38,.1)}
+.mataLogoImg{width:180px;height:180px;object-fit:contain;animation:mataGallop .55s ease-in-out infinite;display:block}
+.mataDust{display:flex;gap:5px;margin-top:6px;justify-content:flex-start;padding-left:4px;height:10px;align-items:flex-end}
+.mataDust span{border-radius:50%;background:rgba(180,20,20,.55);animation:mataDustFloat .55s ease-in-out infinite}
+.mataDust span:nth-child(1){width:8px;height:8px;animation-delay:0s}
+.mataDust span:nth-child(2){width:6px;height:6px;animation-delay:.1s}
+.mataDust span:nth-child(3){width:4px;height:4px;animation-delay:.2s}
+.mataDust span:nth-child(4){width:3px;height:3px;animation-delay:.3s}
+#mataLoaderStep{color:#c4b5fd;font-size:10px;font-family:'JetBrains Mono',monospace;margin-top:18px;text-align:center;letter-spacing:.5px;animation:mataStepPulse 1.2s ease-in-out infinite}
+.mataLoaderDots::after{content:'';animation:mataDots 1.4s steps(4,end) infinite}
+@keyframes mataDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
+@keyframes mataGallop{0%,100%{transform:translateY(0) rotate(-2deg) scaleX(1)}40%{transform:translateY(-14px) rotate(2deg) scaleX(1.03)}70%{transform:translateY(-6px) rotate(0deg) scaleX(1.01)}}
+@keyframes mataDustFloat{0%,100%{transform:translateX(0) scale(1);opacity:.55}50%{transform:translateX(-10px) scale(1.4);opacity:.1}}
+@keyframes mataStepPulse{0%,100%{opacity:1}50%{opacity:.5}}
 #apStatus{font-size:9px;color:var(--txd);font-family:'JetBrains Mono',monospace;margin-top:8px;min-height:14px;line-height:1.6}
 #apStatus .ok{color:var(--g2)}#apStatus .err{color:var(--r2)}#apStatus .ld{color:#a78bfa}
 /* ── Debug mode ── */
@@ -134,6 +151,14 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </style>
 </head>
 <body>
+<!-- Mata loading overlay -->
+<div id="mataLoader">
+  <div class="mataLogoWrap">
+    <img src="/Mata_logo.jpg" class="mataLogoImg" alt="Mata">
+    <div class="mataDust"><span></span><span></span><span></span><span></span></div>
+  </div>
+  <div id="mataLoaderStep"><span class="mataLoaderDots"></span></div>
+</div>
 <div id="UZ">
   <h1>Mata &middot; <em>Analysis</em></h1>
   <a href="/reconciliation_matix_mata_bictorys.html" style="font-size:10px;color:var(--b2);text-decoration:none;margin-left:8px">R&eacute;conciliation Matrix</a>
@@ -1177,7 +1202,11 @@ var RECON_CAT={
 function apStatus(msg,cls){
   var el=document.getElementById('apStatus');
   if(el)el.innerHTML='<span class="'+(cls||'ld')+'">'+msg+'</span>';
+  var sl=document.getElementById('mataLoaderStep');
+  if(sl)sl.innerHTML=msg+'<span class="mataLoaderDots"></span>';
 }
+function showMataLoader(){var el=document.getElementById('mataLoader');if(el)el.classList.add('active');}
+function hideMataLoader(){var el=document.getElementById('mataLoader');if(el)el.classList.remove('active');}
 function fmtApiDate(ymd){/* YYYY-MM-DD → DD/MM/YYYY URL-encoded */
   var p=ymd.split('-');return encodeURIComponent(p[2]+'/'+p[1]+'/'+p[0]);
 }
@@ -1188,7 +1217,8 @@ async function launchApiAnalysis(){
   if(debut>fin){apStatus('La date de d\u00e9but doit \u00eatre ant\u00e9rieure \u00e0 la date de fin.','err');return;}
   var btn=document.getElementById('apBtn');
   btn.disabled=true;
-  btn.innerHTML='<span class="apSpin"></span> Chargement\u2026';
+  btn.innerHTML='&#128640; En cours\u2026';
+  showMataLoader();
   try{
     /* ── Step 1: achats-boeuf → weighted avg prix ── */
     apStatus('1/4 Chargement achats boeuf\u2026');
@@ -1378,6 +1408,7 @@ async function launchApiAnalysis(){
     apStatus('\u274c Erreur: '+err.message,'err');
     console.error(err);
   }finally{
+    hideMataLoader();
     btn.disabled=false;
     btn.innerHTML='&#128640; Lancer l\u2019analyse';
   }
