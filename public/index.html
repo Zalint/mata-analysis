@@ -342,6 +342,8 @@ function getSellStats(pdv){
       var rf=p.reelF||0,rq=p.reel||0;
       if(isDec){stats.poulet_dec.fcfa+=rf;stats.poulet_dec.qty+=rq;}
       else if(catLo==='bovin'){
+        /* If BOVIN_VENTES loaded, skip reconciliation bovin data (we'll use ventes below) */
+        if(BOVIN_VENTES)continue;
         if(pks[i].toLowerCase().indexOf('veau')>=0){stats.veau.fcfa+=rf;stats.veau.qty+=rq;}
         else if(isAbat){stats.abats.fcfa+=rf;stats.abats.qty+=rq;}
         else{stats.bovin.fcfa+=rf;stats.bovin.qty+=rq;}
@@ -374,6 +376,13 @@ function getSellStats(pdv){
       stats.poisson.fcfa+=pvp[pvpk[pvi]].fcfa;
       stats.poisson.qty+=pvp[pvpk[pvi]].qty;
     }
+  }
+  /* If BOVIN_VENTES loaded, use it for bovin/veau stats */
+  if(BOVIN_VENTES&&BOVIN_VENTES[pdv]){
+    stats.bovin.fcfa+=BOVIN_VENTES[pdv].boeuf.fcfa;
+    stats.bovin.qty+=BOVIN_VENTES[pdv].boeuf.qty;
+    stats.veau.fcfa+=BOVIN_VENTES[pdv].veau.fcfa;
+    stats.veau.qty+=BOVIN_VENTES[pdv].veau.qty;
   }
   var r={};var ks=Object.keys(stats);
   for(var k=0;k<ks.length;k++){var s=stats[ks[k]];r[ks[k]]={fcfa:s.fcfa,qty:s.qty,px:s.qty>0?Math.round(s.fcfa/s.qty):0};}
@@ -639,6 +648,7 @@ fi2.addEventListener('change',function(e){if(e.target.files[0])loadAchats(e.targ
 
 /* ══════ VENTES FILE HANDLER ══════ */
 var POISSON_VENTES=null;
+var BOVIN_VENTES=null; /* {pdv:{boeuf:{qty,fcfa},veau:{qty,fcfa}}} — built from ventes data */
 var VENTES_DATA=null; /* {orders:[{id,pdv,date,heure,montant,numClient,nomClient,items}], byClient:{num:{nom,total,nOrders,pdvs}}} */
 var drop3=document.getElementById('drop3'),fi3=document.getElementById('fi3');
 drop3.addEventListener('click',function(){fi3.click();});
@@ -687,7 +697,7 @@ function loadVentes(file){
     try{
       var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
       var rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{raw:false,defval:''});
-      POISSON_VENTES={};
+      POISSON_VENTES={};BOVIN_VENTES={};
       VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
       var totalQ=0,totalF=0,nProds={};
       for(var i=0;i<rows.length;i++){
@@ -709,6 +719,16 @@ function loadVentes(file){
           POISSON_VENTES[pdv][prod].qty+=qty;
           POISSON_VENTES[pdv][prod].fcfa+=montant;
           totalQ+=qty;totalF+=montant;nProds[prod]=1;
+        }
+        /* Bovin */
+        if(cat.toLowerCase()==='bovin'&&pdv&&qty!==0){
+          var bvIsVeau=prod.toLowerCase().indexOf('veau')>=0;
+          var bvIsAbat=false;for(var bvai=0;bvai<ABATS_PRODS.length;bvai++){if(prod===ABATS_PRODS[bvai]){bvIsAbat=true;break;}}
+          if(!bvIsAbat){
+            if(!BOVIN_VENTES[pdv])BOVIN_VENTES[pdv]={boeuf:{qty:0,fcfa:0},veau:{qty:0,fcfa:0}};
+            if(bvIsVeau){BOVIN_VENTES[pdv].veau.qty+=qty;BOVIN_VENTES[pdv].veau.fcfa+=montant;}
+            else{BOVIN_VENTES[pdv].boeuf.qty+=qty;BOVIN_VENTES[pdv].boeuf.fcfa+=montant;}
+          }
         }
         /* Orders */
         if(orderId){
@@ -1304,8 +1324,8 @@ async function launchApiAnalysis(){
       }
     }
 
-    /* ── Step 5b: build POISSON_VENTES from VENTES_DATA ── */
-    POISSON_VENTES={};
+    /* ── Step 5b: build POISSON_VENTES and BOVIN_VENTES from VENTES_DATA ── */
+    POISSON_VENTES={};BOVIN_VENTES={};
     if(VENTES_DATA&&VENTES_DATA.orders){
       var vks=Object.keys(VENTES_DATA.orders);
       for(var vpi=0;vpi<vks.length;vpi++){
@@ -1313,12 +1333,22 @@ async function launchApiAnalysis(){
         var vpdv=vord.pdv;
         for(var vii=0;vii<vord.items.length;vii++){
           var vit=vord.items[vii];
-          if(String(vit.cat||'').toLowerCase()!=='poisson')continue;
+          var vitCat=String(vit.cat||'').toLowerCase();
           if(!vit.prod||!vit.qty)continue;
-          if(!POISSON_VENTES[vpdv])POISSON_VENTES[vpdv]={};
-          if(!POISSON_VENTES[vpdv][vit.prod])POISSON_VENTES[vpdv][vit.prod]={qty:0,fcfa:0};
-          POISSON_VENTES[vpdv][vit.prod].qty+=vit.qty;
-          POISSON_VENTES[vpdv][vit.prod].fcfa+=vit.montant;
+          if(vitCat==='poisson'){
+            if(!POISSON_VENTES[vpdv])POISSON_VENTES[vpdv]={};
+            if(!POISSON_VENTES[vpdv][vit.prod])POISSON_VENTES[vpdv][vit.prod]={qty:0,fcfa:0};
+            POISSON_VENTES[vpdv][vit.prod].qty+=vit.qty;
+            POISSON_VENTES[vpdv][vit.prod].fcfa+=vit.montant;
+          } else if(vitCat==='bovin'){
+            var vitIsVeau=vit.prod.toLowerCase().indexOf('veau')>=0;
+            var vitIsAbat=false;for(var vitai=0;vitai<ABATS_PRODS.length;vitai++){if(vit.prod===ABATS_PRODS[vitai]){vitIsAbat=true;break;}}
+            if(!vitIsAbat){
+              if(!BOVIN_VENTES[vpdv])BOVIN_VENTES[vpdv]={boeuf:{qty:0,fcfa:0},veau:{qty:0,fcfa:0}};
+              if(vitIsVeau){BOVIN_VENTES[vpdv].veau.qty+=vit.qty;BOVIN_VENTES[vpdv].veau.fcfa+=vit.montant;}
+              else{BOVIN_VENTES[vpdv].boeuf.qty+=vit.qty;BOVIN_VENTES[vpdv].boeuf.fcfa+=vit.montant;}
+            }
+          }
         }
       }
     }
@@ -3489,7 +3519,7 @@ function loadSession(){
               /* Parse ventes */
               var wb3=XLSX.read(ab2,{type:'array',cellDates:true});
               var rows3=XLSX.utils.sheet_to_json(wb3.Sheets[wb3.SheetNames[0]],{raw:false,defval:''});
-              POISSON_VENTES={};VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
+              POISSON_VENTES={};BOVIN_VENTES={};VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
               for(var vi=0;vi<rows3.length;vi++){
                 var rv=rows3[vi];
                 var cat=String(rv['Cat\u00e9gorie']||'').trim();
@@ -3506,6 +3536,15 @@ function loadSession(){
                   if(!POISSON_VENTES[pdv])POISSON_VENTES[pdv]={};
                   if(!POISSON_VENTES[pdv][prod])POISSON_VENTES[pdv][prod]={qty:0,fcfa:0};
                   POISSON_VENTES[pdv][prod].qty+=qty;POISSON_VENTES[pdv][prod].fcfa+=montant;
+                }
+                if(cat.toLowerCase()==='bovin'&&pdv&&qty!==0){
+                  var bvIsVeau2=prod.toLowerCase().indexOf('veau')>=0;
+                  var bvIsAbat2=false;for(var bvai2=0;bvai2<ABATS_PRODS.length;bvai2++){if(prod===ABATS_PRODS[bvai2]){bvIsAbat2=true;break;}}
+                  if(!bvIsAbat2){
+                    if(!BOVIN_VENTES[pdv])BOVIN_VENTES[pdv]={boeuf:{qty:0,fcfa:0},veau:{qty:0,fcfa:0}};
+                    if(bvIsVeau2){BOVIN_VENTES[pdv].veau.qty+=qty;BOVIN_VENTES[pdv].veau.fcfa+=montant;}
+                    else{BOVIN_VENTES[pdv].boeuf.qty+=qty;BOVIN_VENTES[pdv].boeuf.fcfa+=montant;}
+                  }
                 }
                 if(orderId){
                   if(!VENTES_DATA.orders[orderId])VENTES_DATA.orders[orderId]={id:orderId,pdv:pdv,date:dateR,heure:heure,montant:0,numClient:numClient,nomClient:nomClient,items:[]};
