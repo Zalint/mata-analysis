@@ -115,7 +115,9 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 #apiPanel input[type=date]{background:var(--s2);border:1px solid var(--bd);color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:10px;padding:5px 8px;border-radius:6px;outline:none;cursor:pointer}
 #apiPanel input[type=date]:focus{border-color:#7c3aed}
 #apBtn{background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;border-radius:7px;padding:7px 20px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:.15s;white-space:nowrap}
-#apBtn:hover{opacity:.85}#apBtn:disabled{opacity:.5;cursor:not-allowed}
+#apBtn:hover{opacity:.85}#apBtn:disabled{opacity:.7;cursor:not-allowed}
+.apSpin{display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:apSpin .7s linear infinite;vertical-align:middle;margin-right:2px}
+@keyframes apSpin{to{transform:rotate(360deg)}}
 #apStatus{font-size:9px;color:var(--txd);font-family:'JetBrains Mono',monospace;margin-top:8px;min-height:14px;line-height:1.6}
 #apStatus .ok{color:var(--g2)}#apStatus .err{color:var(--r2)}#apStatus .ld{color:#a78bfa}
 /* ── Debug mode ── */
@@ -1012,6 +1014,7 @@ async function launchApiAnalysis(){
   if(debut>fin){apStatus('La date de d\u00e9but doit \u00eatre ant\u00e9rieure \u00e0 la date de fin.','err');return;}
   var btn=document.getElementById('apBtn');
   btn.disabled=true;
+  btn.innerHTML='<span class="apSpin"></span> Chargement\u2026';
   try{
     /* ── Step 1: achats-boeuf → weighted avg prix ── */
     apStatus('1/4 Chargement achats boeuf\u2026');
@@ -1169,8 +1172,10 @@ async function launchApiAnalysis(){
     console.error(err);
   }finally{
     btn.disabled=false;
+    btn.innerHTML='&#128640; Lancer l\u2019analyse';
   }
 }
+window.launchApiAnalysis=launchApiAnalysis;
 
 function render(){
   /* Apply category overrides dynamically */
