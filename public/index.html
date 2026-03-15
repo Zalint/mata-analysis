@@ -129,7 +129,8 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 .mataDustTrail span:nth-child(2){width:5px;height:5px;animation:dustPop 2.6s .08s ease-out infinite}
 .mataDustTrail span:nth-child(3){width:3px;height:3px;animation:dustPop 2.6s .14s ease-out infinite}
 .mataBull{position:absolute;bottom:2px;left:0;width:115px;height:90px;object-fit:contain;filter:brightness(.83) drop-shadow(0 0 6px rgba(220,38,38,.5));transform-origin:center bottom;animation:bullCharge 2.6s ease-in-out infinite}
-.mataTarget{position:absolute;bottom:2px;right:8px;width:62px;height:62px;object-fit:contain;filter:brightness(.78);animation:logoShake 2.6s ease-in-out infinite}
+.mataTarget{position:absolute;bottom:2px;right:8px;width:62px;height:62px;object-fit:cover;border-radius:50%;filter:brightness(.78);animation:logoShake 2.6s ease-in-out infinite}
+#mataLoader.finishing .mataTarget{animation:logoFall .95s cubic-bezier(.55,0,1,.45) forwards!important}
 #mataLoaderStep{color:#a78bfa;font-size:9px;font-family:'JetBrains Mono',monospace;margin-top:14px;text-align:center;letter-spacing:.4px;animation:mataStepPulse 1.2s ease-in-out infinite}
 .mataLoaderDots::after{content:'';animation:mataDots 1.4s steps(4,end) infinite}
 @keyframes mataDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
@@ -167,6 +168,11 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
   54%{transform:rotate(8deg)  scale(.9)}
   58%{transform:rotate(-5deg) scale(1.08)}
   62%{transform:rotate(3deg)  scale(.97)}
+}
+@keyframes logoFall{
+  0%  {transform:rotate(0deg)  scale(1)   translateY(0);   opacity:1}
+  18% {transform:rotate(-6deg) scale(1.12) translateY(-10px); opacity:1}
+  100%{transform:rotate(28deg) scale(.75) translateY(220px); opacity:0}
 }
 @keyframes mataStepPulse{0%,100%{opacity:1}50%{opacity:.45}}
 #apStatus{font-size:9px;color:var(--txd);font-family:'JetBrains Mono',monospace;margin-top:8px;min-height:14px;line-height:1.6}
@@ -1242,7 +1248,12 @@ function apStatus(msg,cls){
   if(sl)sl.innerHTML=msg+'<span class="mataLoaderDots"></span>';
 }
 function showMataLoader(){var el=document.getElementById('mataLoader');if(el)el.classList.add('active');}
-function hideMataLoader(){var el=document.getElementById('mataLoader');if(el)el.classList.remove('active');}
+function hideMataLoader(){
+  var el=document.getElementById('mataLoader');
+  if(!el)return;
+  el.classList.add('finishing');
+  setTimeout(function(){el.classList.remove('active','finishing');},1000);
+}
 function fmtApiDate(ymd){/* YYYY-MM-DD → DD/MM/YYYY URL-encoded */
   var p=ymd.split('-');return encodeURIComponent(p[2]+'/'+p[1]+'/'+p[0]);
 }
