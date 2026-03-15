@@ -603,11 +603,9 @@ function getAbatCaDay(day){if(!day||!day.prods)return 0;var ca=0,pn=Object.keys(
 /* Peaux sales CA for a single day */
 function getPeauxCaDay(day){if(!day||!day.prods||!day.prods['Peaux'])return 0;return day.prods['Peaux'].reelF||0;}
 /* Effective CA = cashR + revenu supp daily
-   - Défaut        : CA complet partout (abats Abattage inclus, coût = prix_achat_kg_sans_abats)
-   - ABATS_MODE    : CA Abattage exclut abats, coût = prix_achat_kg  → cohérent, même marge
-   - PRIX_REVIENT  : CA Abattage exclut abats+peaux, coût = prix_revient → cohérent
-   Les deux modes ne touchent jamais les abats des autres PDV */
-function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(pdv==='Abattage'&&(ABATS_MODE||PRIX_REVIENT_MODE)){ca-=getAbatCaDay(day);if(PRIX_REVIENT_MODE)ca-=getPeauxCaDay(day);}return ca+rs;}
+   - Défaut / ABATS_MODE : CA complet partout — ABATS_MODE change uniquement le coût
+   - PRIX_REVIENT_MODE   : retire uniquement les Peaux du CA à Abattage (nettées dans prix_revient) */
+function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(PRIX_REVIENT_MODE&&pdv==='Abattage')ca-=getPeauxCaDay(day);return ca+rs;}
 
 /* Compute MaaS commission total for a PdV */
 function getMaaSCommission(pdv){
