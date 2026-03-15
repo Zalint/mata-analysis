@@ -386,8 +386,8 @@ var REVENU_SUPP={
 };
 function getChargeMonthly(pdv){var c=CHARGES[pdv];if(!c)return 0;return c.sal_com*c.nb_com+c.sal_bou*c.nb_bou+c.loyer+c.elec+c.internet+(c.autres||0);}
 function getChargeDaily(pdv){return getChargeMonthly(pdv)/30;}
-function getPrix(pdv,dk,cat){if(PRIX_DATE[pdv]&&PRIX_DATE[pdv][dk]&&PRIX_DATE[pdv][dk][cat]!==undefined)return PRIX_DATE[pdv][dk][cat];if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];if(ABATS_MODE&&(cat==='bovin'||cat==='veau')&&PRIX_AVEC_ABATS[cat]>0)return PRIX_AVEC_ABATS[cat];return PRIX[cat]||0;}
-function getEffPrix(pdv,cat){if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];if(ABATS_MODE&&(cat==='bovin'||cat==='veau')&&PRIX_AVEC_ABATS[cat]>0)return PRIX_AVEC_ABATS[cat];return PRIX[cat]||0;}
+function getPrix(pdv,dk,cat){if(PRIX_DATE[pdv]&&PRIX_DATE[pdv][dk]&&PRIX_DATE[pdv][dk][cat]!==undefined)return PRIX_DATE[pdv][dk][cat];if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];if((cat==='bovin'||cat==='veau')){if(PRIX_REVIENT_MODE&&PRIX_REVIENT[cat]>0)return PRIX_REVIENT[cat];if(ABATS_MODE&&PRIX_AVEC_ABATS[cat]>0)return PRIX_AVEC_ABATS[cat];}return PRIX[cat]||0;}
+function getEffPrix(pdv,cat){if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];if((cat==='bovin'||cat==='veau')){if(PRIX_REVIENT_MODE&&PRIX_REVIENT[cat]>0)return PRIX_REVIENT[cat];if(ABATS_MODE&&PRIX_AVEC_ABATS[cat]>0)return PRIX_AVEC_ABATS[cat];}return PRIX[cat]||0;}
 
 /* Compute selling price stats per category for a PdV */
 function getSellStats(pdv){
@@ -479,6 +479,8 @@ var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 var ABATS_PRODS=['Abats','Foie','Yell','Merguez','Mergez','Déchet 400','Déchet'];
 var ABATS_MODE=false; /* when true: use prix_achat_kg (net after abats) + exclude abat CA */
 var PRIX_AVEC_ABATS={bovin:0,veau:0}; /* weighted avg of prix_achat_kg from API */
+var PRIX_REVIENT_MODE=false; /* when true: use prix_revient (abats+peaux) + exclude abat+peaux CA */
+var PRIX_REVIENT={bovin:0,veau:0}; /* = PRIX_AVEC_ABATS − total_peaux_ventes/total_kg */
 
 /* Weighted average selling price for a category — scoped to one PdV or all */
 function getAvgSellPrice(cat,pdv){
@@ -598,8 +600,10 @@ function calcPoissonCA(day){
 }
 /* Abat sales CA for a single day (from reconciliation prods) */
 function getAbatCaDay(day){if(!day||!day.prods)return 0;var ca=0,pn=Object.keys(day.prods);for(var i=0;i<pn.length;i++){for(var ai=0;ai<ABATS_PRODS.length;ai++){if(pn[i]===ABATS_PRODS[ai]){ca+=(day.prods[pn[i]].reelF||0);break;}}}return ca;}
-/* Effective CA = cashR + revenu supp daily — excludes abat sales for Abattage always, and for all PDVs when ABATS_MODE */
-function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(ABATS_MODE||pdv==='Abattage')ca-=getAbatCaDay(day);return ca+rs;}
+/* Peaux sales CA for a single day */
+function getPeauxCaDay(day){if(!day||!day.prods||!day.prods['Peaux'])return 0;return day.prods['Peaux'].reelF||0;}
+/* Effective CA = cashR + revenu supp daily — excludes abat sales for Abattage always, and for all PDVs when ABATS_MODE/PRIX_REVIENT_MODE; excludes peaux when PRIX_REVIENT_MODE */
+function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(ABATS_MODE||PRIX_REVIENT_MODE||pdv==='Abattage')ca-=getAbatCaDay(day);if(PRIX_REVIENT_MODE)ca-=getPeauxCaDay(day);return ca+rs;}
 
 /* Compute MaaS commission total for a PdV */
 function getMaaSCommission(pdv){
@@ -1438,6 +1442,27 @@ async function launchApiAnalysis(){
       }
     }
 
+    /* ── Step 5c: compute PRIX_REVIENT (abats + peaux deducted) ── */
+    var totalPeauxVentes=0;
+    if(VENTES_DATA&&VENTES_DATA.orders){
+      var prOrdKeys=Object.keys(VENTES_DATA.orders);
+      for(var pri=0;pri<prOrdKeys.length;pri++){
+        var prOrd=VENTES_DATA.orders[prOrdKeys[pri]];
+        if(prOrd.pdv==='Abattage'){
+          for(var prj=0;prj<prOrd.items.length;prj++){
+            if(prOrd.items[prj].prod==='Peaux')totalPeauxVentes+=(prOrd.items[prj].montant||0);
+          }
+        }
+      }
+    }
+    var totalKgBoth=boeufTotKg+veauTotKg;
+    PRIX_REVIENT={bovin:0,veau:0};
+    if(totalKgBoth>0&&(PRIX_AVEC_ABATS.bovin>0||PRIX_AVEC_ABATS.veau>0)){
+      var peauxPerKg=totalPeauxVentes/totalKgBoth;
+      PRIX_REVIENT.bovin=PRIX_AVEC_ABATS.bovin>0?Math.round(PRIX_AVEC_ABATS.bovin-peauxPerKg):0;
+      PRIX_REVIENT.veau=PRIX_AVEC_ABATS.veau>0?Math.round(PRIX_AVEC_ABATS.veau-peauxPerKg):0;
+    }
+
     /* ── Step 6: apply prices + set DATA ── */
     PRIX.bovin=pxBoeuf;
     PRIX.veau=pxVeau;
@@ -1860,10 +1885,16 @@ function renderPrixInputs(pdv){
   /* Abats mode toggle — only shown when prix_achat_kg data is available from API */
   if(PRIX_AVEC_ABATS.bovin>0||PRIX_AVEC_ABATS.veau>0){
     h+='<div style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:6px;padding:7px 12px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:7px">';
-    h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="abatsModeCb"'+(ABATS_MODE?' checked':'')+' style="accent-color:#dc2626;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#dc2626">Abats inclus dans coût</span></label>';
-    if(PRIX_AVEC_ABATS.bovin>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 Boeuf net: <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.bovin)+'</b> F/kg</span>';
-    if(PRIX_AVEC_ABATS.veau>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 Veau net: <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.veau)+'</b> F/kg</span>';
-    h+='<span style="font-size:7px;color:var(--tx3);font-style:italic">coché → remplace coût achat + exclut CA abats partout</span>';
+    h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="abatsModeCb"'+(ABATS_MODE&&!PRIX_REVIENT_MODE?' checked':'')+' style="accent-color:#dc2626;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#dc2626">Abats inclus</span></label>';
+    if(PRIX_AVEC_ABATS.bovin>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.bovin)+'</b> F/kg</span>';
+    if(PRIX_AVEC_ABATS.veau>0)h+='<span style="font-size:8px;color:var(--txd)">veau <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.veau)+'</b> F/kg</span>';
+    if(PRIX_REVIENT.bovin>0||PRIX_REVIENT.veau>0){
+      h+='<span style="width:1px;height:16px;background:rgba(220,38,38,.3);display:inline-block;margin:0 4px"></span>';
+      h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="prixRevientModeCb"'+(PRIX_REVIENT_MODE?' checked':'')+' style="accent-color:#f97316;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#f97316">Prix de revient</span></label>';
+      if(PRIX_REVIENT.bovin>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 <b style="color:#fdba74;font-family:JetBrains Mono">'+FK(PRIX_REVIENT.bovin)+'</b> F/kg</span>';
+      if(PRIX_REVIENT.veau>0)h+='<span style="font-size:8px;color:var(--txd)">veau <b style="color:#fdba74;font-family:JetBrains Mono">'+FK(PRIX_REVIENT.veau)+'</b> F/kg</span>';
+      h+='<span style="font-size:7px;color:var(--tx3);font-style:italic">(abats+peaux)</span>';
+    }
     h+='</div>';
   }
   for(var ci=0;ci<cats.length;ci++){
@@ -1994,7 +2025,9 @@ function bindPrixInputs(){
     });
   });
   var abatsCb=document.getElementById('abatsModeCb');
-  if(abatsCb){abatsCb.addEventListener('change',function(){ABATS_MODE=this.checked;render();});}
+  if(abatsCb){abatsCb.addEventListener('change',function(){ABATS_MODE=this.checked;if(this.checked)PRIX_REVIENT_MODE=false;render();});}
+  var prixRevientCb=document.getElementById('prixRevientModeCb');
+  if(prixRevientCb){prixRevientCb.addEventListener('change',function(){PRIX_REVIENT_MODE=this.checked;if(this.checked)ABATS_MODE=false;render();});}
   document.querySelectorAll('.pcA').forEach(function(inp){
     inp.addEventListener('change',function(){
       if(POISSON_CONFIG[this.dataset.p])POISSON_CONFIG[this.dataset.p].achat=parseFloat(this.value)||0;
