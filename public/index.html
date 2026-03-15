@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--bg:#04060b;--s1:#0a0e18;--s2:#111827;--bd:#1e2a40;--bd2:#283550;--tx:#e2e8f0;--txd:#94a3b8;--tx3:#64748b;--g:#22c55e;--g2:#4ade80;--r:#ef4444;--r2:#f87171;--o:#f59e0b;--o2:#fbbf24;--b:#3b82f6;--b2:#60a5fa;--v:#a78bfa;--v2:#c4b5fd;--t:#2dd4bf}
+body.light{--bg:#f1f5f9;--s1:#ffffff;--s2:#f8fafc;--bd:#e2e8f0;--bd2:#cbd5e1;--tx:#0f172a;--txd:#475569;--tx3:#94a3b8;--g:#16a34a;--g2:#15803d;--r:#dc2626;--r2:#b91c1c;--o:#d97706;--o2:#b45309;--b:#2563eb;--b2:#1d4ed8;--v:#7c3aed;--v2:#6d28d9;--t:#0d9488}
 *{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--tx);font-family:'Instrument Sans',sans-serif;-webkit-font-smoothing:antialiased}.mono{font-family:'JetBrains Mono',monospace}
 #UZ{max-width:620px;margin:60px auto;text-align:center;padding:40px}
 #UZ h1{font-size:22px;font-weight:700;margin-bottom:4px}#UZ h1 em{font-style:normal;background:linear-gradient(135deg,var(--g),var(--t));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
@@ -294,7 +295,7 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="D">
   <div class="hd">
-    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Changer p&eacute;riode</a><a id="btnRefresh" href="#" onclick="window.refreshAnalysis();return false;" style="margin-left:8px;font-size:10px;color:var(--g2);text-decoration:none;display:none" title="Relancer l&#39;analyse API avec la m&ecirc;me p&eacute;riode">&#128260; Rafra&icirc;chir</a><a href="#" onclick="clearAnalysisCache();return false;" style="margin-left:8px;font-size:10px;color:var(--r2);text-decoration:none;opacity:.6" title="Vider le cache localStorage">&#128465;</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label></div>
+    <div><h1>Mata &middot; <em>Analysis</em></h1><div class="meta" id="meta"></div><a href="/reconciliation_matix_mata_bictorys.html" style="margin-left:12px;font-size:10px;color:var(--b2);text-decoration:none">R&eacute;conciliation Matrix</a><a href="/auth/logout" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none">Se d&eacute;connecter</a><a id="backToUpload" href="#" onclick="document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';window.scrollTo(0,0);return false;" style="margin-left:12px;font-size:10px;color:var(--tx3);text-decoration:none;display:none">&#8592; Changer p&eacute;riode</a><a id="btnRefresh" href="#" onclick="window.refreshAnalysis();return false;" style="margin-left:8px;font-size:10px;color:var(--g2);text-decoration:none;display:none" title="Relancer l&#39;analyse API avec la m&ecirc;me p&eacute;riode">&#128260; Rafra&icirc;chir</a><a href="#" onclick="clearAnalysisCache();return false;" style="margin-left:8px;font-size:10px;color:var(--r2);text-decoration:none;opacity:.6" title="Vider le cache localStorage">&#128465;</a><label style="margin-left:16px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:8px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase"><input type="checkbox" id="dbgToggle" style="accent-color:var(--b);width:11px;height:11px"> Debug</label><button id="themeToggle" onclick="toggleTheme()" title="Thème clair/sombre" style="margin-left:10px;background:none;border:1px solid var(--bd);border-radius:5px;cursor:pointer;font-size:13px;padding:2px 7px;color:var(--txd);line-height:1">🌙</button><button onclick="exportAnalysis()" title="Exporter l'analyse en JSON" style="margin-left:6px;background:none;border:1px solid var(--bd);border-radius:5px;cursor:pointer;font-size:9px;padding:3px 8px;color:var(--txd);font-weight:600">⬇ JSON</button></div>
     <div class="ctrl" id="fpBar"></div>
   </div>
   <div class="tabs" id="tabs"></div>
@@ -4055,6 +4056,63 @@ document.body.addEventListener('click',function(e){
 
 window.toggleChat=toggleChat;
 window.sendChat=sendChat;
+
+/* ── Theme toggle ── */
+var LIGHT_MODE=(localStorage.getItem('mata_theme')==='light');
+function applyTheme(){
+  document.body.classList.toggle('light',LIGHT_MODE);
+  var btn=document.getElementById('themeToggle');
+  if(btn)btn.textContent=LIGHT_MODE?'🌙':'☀️';
+}
+window.toggleTheme=function(){
+  LIGHT_MODE=!LIGHT_MODE;
+  localStorage.setItem('mata_theme',LIGHT_MODE?'light':'dark');
+  applyTheme();
+};
+applyTheme();
+
+/* ── JSON Export ── */
+window.exportAnalysis=function(){
+  if(!DATA||!Object.keys(DATA).length){alert('Aucune analyse chargée.');return;}
+  var out={
+    exportedAt:new Date().toISOString(),
+    periode:{debut:document.getElementById('dateDebut')?document.getElementById('dateDebut').value:'',fin:document.getElementById('dateFin')?document.getElementById('dateFin').value:''},
+    prix:{global:PRIX,avec_abats:PRIX_AVEC_ABATS,revient:PRIX_REVIENT},
+    modes:{abats:ABATS_MODE,prix_revient:PRIX_REVIENT_MODE},
+    pdv_data:{},
+    ventes:VENTES_DATA||null
+  };
+  /* Sérialise DATA (dates → strings) */
+  var pdvs=Object.keys(DATA);
+  for(var i=0;i<pdvs.length;i++){
+    var pdv=pdvs[i];
+    out.pdv_data[pdv]=DATA[pdv].map(function(day){
+      var prods={};
+      Object.keys(day.prods||{}).forEach(function(pn){
+        var p=day.prods[pn];
+        prods[pn]={cat:p.cat,theo:p.theo,reel:p.reel,reelF:p.reelF,theoF:p.theoF};
+      });
+      return {date:day.date.toISOString().slice(0,10),cashR:day.cashR,cashT:day.cashT,prods:prods};
+    });
+  }
+  /* Calcul performance par PDV */
+  var perfRows=[];
+  for(var pi=0;pi<pdvs.length;pi++){
+    var pdv2=pdvs[pi],days=DATA[pdv2];
+    var ca=0,cost=0;
+    for(var d=0;d<days.length;d++){ca+=effectiveCA(days[d],pdv2);cost+=calcCostDay(days[d],pdv2).total;}
+    var chg=getChargeDaily(pdv2)*days.length;
+    var mb=ca-cost;
+    perfRows.push({pdv:pdv2,ca:Math.round(ca),cout_achat:Math.round(cost),marge_brute:Math.round(mb),marge_brute_pct:ca?+(mb/ca*100).toFixed(1):0,charges_fixes:Math.round(chg),marge_nette:Math.round(mb-chg)});
+  }
+  out.performance_pdv=perfRows;
+  var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='mata_analyse_'+(new Date().toISOString().slice(0,10))+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 
 })();
 </script>
