@@ -4,7 +4,7 @@
   "description": "Mata Group SA - Outil d'analyse opérationnel avec assistant IA",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --env-file=.env server.js"
   },
   "engines": {
     "node": ">=18.0.0"
