@@ -386,8 +386,8 @@ var REVENU_SUPP={
 };
 function getChargeMonthly(pdv){var c=CHARGES[pdv];if(!c)return 0;return c.sal_com*c.nb_com+c.sal_bou*c.nb_bou+c.loyer+c.elec+c.internet+(c.autres||0);}
 function getChargeDaily(pdv){return getChargeMonthly(pdv)/30;}
-function getPrix(pdv,dk,cat){if(PRIX_DATE[pdv]&&PRIX_DATE[pdv][dk]&&PRIX_DATE[pdv][dk][cat]!==undefined)return PRIX_DATE[pdv][dk][cat];if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];return PRIX[cat]||0;}
-function getEffPrix(pdv,cat){if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];return PRIX[cat]||0;}
+function getPrix(pdv,dk,cat){if(PRIX_DATE[pdv]&&PRIX_DATE[pdv][dk]&&PRIX_DATE[pdv][dk][cat]!==undefined)return PRIX_DATE[pdv][dk][cat];if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];if(ABATS_MODE&&(cat==='bovin'||cat==='veau')&&PRIX_AVEC_ABATS[cat]>0)return PRIX_AVEC_ABATS[cat];return PRIX[cat]||0;}
+function getEffPrix(pdv,cat){if(PRIX_PDV[pdv]&&PRIX_PDV[pdv][cat]!==undefined)return PRIX_PDV[pdv][cat];if(ABATS_MODE&&(cat==='bovin'||cat==='veau')&&PRIX_AVEC_ABATS[cat]>0)return PRIX_AVEC_ABATS[cat];return PRIX[cat]||0;}
 
 /* Compute selling price stats per category for a PdV */
 function getSellStats(pdv){
@@ -477,6 +477,8 @@ var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 
 /* Abats product names (for Abattage PdV only) */
 var ABATS_PRODS=['Abats','Foie','Yell','Merguez','Mergez','Déchet 400','Déchet'];
+var ABATS_MODE=false; /* when true: use prix_achat_kg (net after abats) + exclude abat CA */
+var PRIX_AVEC_ABATS={bovin:0,veau:0}; /* weighted avg of prix_achat_kg from API */
 
 /* Weighted average selling price for a category — scoped to one PdV or all */
 function getAvgSellPrice(cat,pdv){
@@ -594,8 +596,10 @@ function calcPoissonCA(day){
   }
   return ca;
 }
-/* Effective CA = cashR + revenu supp daily */
-function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;return (day.cashR||0)+rs;}
+/* Abat sales CA for a single day (from reconciliation prods) */
+function getAbatCaDay(day){if(!day||!day.prods)return 0;var ca=0,pn=Object.keys(day.prods);for(var i=0;i<pn.length;i++){for(var ai=0;ai<ABATS_PRODS.length;ai++){if(pn[i]===ABATS_PRODS[ai]){ca+=(day.prods[pn[i]].reelF||0);break;}}}return ca;}
+/* Effective CA = cashR + revenu supp daily — excludes abat sales for Abattage always, and for all PDVs when ABATS_MODE */
+function effectiveCA(day,pdv){if(!day)return 0;var rs=pdv&&REVENU_SUPP[pdv]?REVENU_SUPP[pdv]/30:0;var ca=day.cashR||0;if(ABATS_MODE||pdv==='Abattage')ca-=getAbatCaDay(day);return ca+rs;}
 
 /* Compute MaaS commission total for a PdV */
 function getMaaSCommission(pdv){
@@ -1273,15 +1277,18 @@ async function launchApiAnalysis(){
     var achatRes=await fetch('/api/external/achats-boeuf?startDate='+debut+'&endDate='+fin);
     var achatJson=await achatRes.json();
     var boeufTotPx=0,boeufTotKg=0,veauTotPx=0,veauTotKg=0;
+    var boeufTotPxNet=0,veauTotPxNet=0;
     if(achatJson.success&&achatJson.data&&achatJson.data.achats){
       achatJson.data.achats.forEach(function(a){
-        var px=a.prix_achat_kg_sans_abats||0,kg=a.nbr_kg||0;
-        if(a.bete==='boeuf'){boeufTotPx+=px*kg;boeufTotKg+=kg;}
-        else if(a.bete==='veau'){veauTotPx+=px*kg;veauTotKg+=kg;}
+        var px=a.prix_achat_kg_sans_abats||0,pxNet=a.prix_achat_kg||0,kg=a.nbr_kg||0;
+        if(a.bete==='boeuf'){boeufTotPx+=px*kg;boeufTotPxNet+=pxNet*kg;boeufTotKg+=kg;}
+        else if(a.bete==='veau'){veauTotPx+=px*kg;veauTotPxNet+=pxNet*kg;veauTotKg+=kg;}
       });
     }
     var pxBoeuf=boeufTotKg>0?Math.round(boeufTotPx/boeufTotKg):PRIX.bovin;
     var pxVeau=veauTotKg>0?Math.round(veauTotPx/veauTotKg):(boeufTotKg>0?pxBoeuf:PRIX.veau);
+    PRIX_AVEC_ABATS.bovin=boeufTotKg>0?Math.round(boeufTotPxNet/boeufTotKg):0;
+    PRIX_AVEC_ABATS.veau=veauTotKg>0?Math.round(veauTotPxNet/veauTotKg):(boeufTotKg>0?PRIX_AVEC_ABATS.bovin:0);
 
     /* ── Step 2: parallel fetch ventes + recon + pack ── */
     apStatus('2/4 Chargement ventes, r\u00e9conciliation, packs\u2026');
@@ -1850,6 +1857,15 @@ function renderPrixInputs(pdv){
   var colors=['#dc2626','#dc2626','#d97706','#6366f1','#06b6d4'];
   var units=['F/kg','F/kg','F/pcs','F/kg','F/kg'];
   var h='<div class="perfPrix">';
+  /* Abats mode toggle — only shown when prix_achat_kg data is available from API */
+  if(PRIX_AVEC_ABATS.bovin>0||PRIX_AVEC_ABATS.veau>0){
+    h+='<div style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:6px;padding:7px 12px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:7px">';
+    h+='<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="abatsModeCb"'+(ABATS_MODE?' checked':'')+' style="accent-color:#dc2626;width:13px;height:13px"><span style="font-size:9px;font-weight:700;color:#dc2626">Abats inclus dans coût</span></label>';
+    if(PRIX_AVEC_ABATS.bovin>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 Boeuf net: <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.bovin)+'</b> F/kg</span>';
+    if(PRIX_AVEC_ABATS.veau>0)h+='<span style="font-size:8px;color:var(--txd)">\ud83e\udd69 Veau net: <b style="color:#fca5a5;font-family:JetBrains Mono">'+FK(PRIX_AVEC_ABATS.veau)+'</b> F/kg</span>';
+    h+='<span style="font-size:7px;color:var(--tx3);font-style:italic">coché → remplace coût achat + exclut CA abats partout</span>';
+    h+='</div>';
+  }
   for(var ci=0;ci<cats.length;ci++){
     var k=cats[ci];
     var effPx=pdv&&PRIX_PDV[pdv]&&PRIX_PDV[pdv][k]!==undefined?PRIX_PDV[pdv][k]:PRIX[k];
@@ -1977,6 +1993,8 @@ function bindPrixInputs(){
       render();
     });
   });
+  var abatsCb=document.getElementById('abatsModeCb');
+  if(abatsCb){abatsCb.addEventListener('change',function(){ABATS_MODE=this.checked;render();});}
   document.querySelectorAll('.pcA').forEach(function(inp){
     inp.addEventListener('change',function(){
       if(POISSON_CONFIG[this.dataset.p])POISSON_CONFIG[this.dataset.p].achat=parseFloat(this.value)||0;
