@@ -128,8 +128,8 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 .mataDustTrail span:nth-child(1){width:8px;height:8px;animation:dustPop 2.6s .02s ease-out infinite}
 .mataDustTrail span:nth-child(2){width:5px;height:5px;animation:dustPop 2.6s .08s ease-out infinite}
 .mataDustTrail span:nth-child(3){width:3px;height:3px;animation:dustPop 2.6s .14s ease-out infinite}
-.mataBull{position:absolute;bottom:2px;left:0;width:115px;height:90px;object-fit:contain;filter:brightness(.83) drop-shadow(0 0 6px rgba(220,38,38,.5));transform-origin:center bottom;animation:bullCharge 2.6s ease-in-out infinite}
-.mataTarget{position:absolute;bottom:2px;right:8px;width:62px;height:62px;object-fit:cover;border-radius:50%;filter:brightness(.78);animation:logoShake 2.6s ease-in-out infinite}
+.mataBull{position:absolute;bottom:2px;left:0;width:115px;height:90px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(220,38,38,.6));transform-origin:center bottom;animation:bullCharge 2.6s ease-in-out infinite}
+.mataTarget{position:absolute;bottom:2px;right:8px;width:62px;height:62px;object-fit:contain;border-radius:50%;overflow:hidden;animation:logoShake 2.6s ease-in-out infinite}
 #mataLoader.finishing .mataTarget{animation:logoFall .95s cubic-bezier(.55,0,1,.45) forwards!important}
 #mataLoaderStep{color:#a78bfa;font-size:9px;font-family:'JetBrains Mono',monospace;margin-top:14px;text-align:center;letter-spacing:.4px;animation:mataStepPulse 1.2s ease-in-out infinite}
 .mataLoaderDots::after{content:'';animation:mataDots 1.4s steps(4,end) infinite}
@@ -196,8 +196,8 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
   <div class="mataStage">
     <div class="mataGround"></div>
     <div class="mataDustTrail"><span></span><span></span><span></span></div>
-    <img src="/bull.jpg" class="mataBull" alt="">
-    <img src="/Mata_logo.jpg" class="mataTarget" alt="Mata">
+    <img src="/bull.svg" class="mataBull" alt="">
+    <img src="/mata_logo.svg" class="mataTarget" alt="Mata">
   </div>
   <div id="mataLoaderStep"><span class="mataLoaderDots"></span></div>
 </div>
