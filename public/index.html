@@ -1779,6 +1779,7 @@ function renderPrixInputs(pdv){
     var margeOn=hasMarge&&(pdv?(MARGE_MODE_PDV[pdv]&&MARGE_MODE_PDV[pdv][k]!=null?MARGE_MODE_PDV[pdv][k]:MARGE_MODE[k]):MARGE_MODE[k]);
     var margePct=hasMarge?(pdv?(MARGE_PCT_PDV[pdv]&&MARGE_PCT_PDV[pdv][k]!=null?MARGE_PCT_PDV[pdv][k]:MARGE_PCT[k]):MARGE_PCT[k]):MARGE_PCT[k]||20;
     var avgPx=margeOn?getAvgSellPrice(k,pdv||undefined):0;
+    if(margeOn&&avgPx>0)effPx=Math.round(avgPx*(1-margePct/100));
     if(k==='poisson'){
       /* Individual fish type entries instead of single Poisson box */
       var pck2=Object.keys(POISSON_CONFIG);
