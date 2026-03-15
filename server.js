@@ -123,7 +123,7 @@ const server = http.createServer(async (req, res) => {
     const filePath = path.join(__dirname, 'public', req.url);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const ext = path.extname(filePath);
-      const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png' };
+      const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
       res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream' });
       res.end(fs.readFileSync(filePath));
       return;
