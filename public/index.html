@@ -2091,7 +2091,7 @@ function bindChargesInputs(){
 /*══════ RENDER PERF GLOBAL ══════*/
 function renderPerfGlobal(el){
   var pdvs=Object.keys(DATA);
-  var h='<div class="st">\ud83d\udcc8 Performance par Point de Vente</div>';
+  var h='';
   h+=renderPrixInputs();
   h+='<details class="perfChg" style="margin-bottom:12px"><summary>\ud83c\udf10 Charge Globale \u2014 distribution au prorata du CA <span style="color:var(--v2);font-weight:700">'+(CHARGE_GLOBALE>0?FK(CHARGE_GLOBALE)+' FCFA':'non configur\u00e9e')+'</span></summary><div class="cg" style="margin-top:8px"><div class="ci"><span>Montant global (pour la p\u00e9riode analys\u00e9e)</span><input type="number" id="cgInp" value="'+CHARGE_GLOBALE+'" min="0" step="10000" style="width:140px"><span class="u">FCFA</span></div><div style="font-size:8px;color:var(--txd);margin-top:4px">Distribu\u00e9 \u00e0 chaque PdV proportionnellement \u00e0 son CA. S\u2019ajoute aux charges fixes.</div></div></details>';
 
@@ -2255,7 +2255,8 @@ function renderPerfGlobal(el){
   h+='</tbody></table></div></details>';
 
   var cgCols=CHARGE_GLOBALE>0;
-  h+='<div class="tw"><table><thead><tr><th style="text-align:left">PdV</th><th>Jours</th><th>CA</th><th>Co\u00fbt Achat</th><th>M. Brute</th><th>M.B %</th><th>Charges fixes</th>'+(cgCols?'<th style="color:var(--v2)">\ud83c\udf10 Ch. Globale</th>':'')+'<th>M. Nette</th><th>M.N %</th><th style="color:var(--tx3)">Px Boeuf</th></tr></thead><tbody>';
+  h+='<details class="perfChg" open><summary style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txd);cursor:pointer;padding:6px 0">\ud83d\udcc8 Performance par Point de Vente</summary>';
+  h+='<div class="tw" style="margin-top:6px"><table><thead><tr><th style="text-align:left">PdV</th><th>Jours</th><th>CA</th><th>Co\u00fbt Achat</th><th>M. Brute</th><th>M.B %</th><th>Charges fixes</th>'+(cgCols?'<th style="color:var(--v2)">\ud83c\udf10 Ch. Globale</th>':'')+'<th>M. Nette</th><th>M.N %</th><th style="color:var(--tx3)">Px Boeuf</th></tr></thead><tbody>';
   for(i=0;i<rows.length;i++){
     var r=rows[i];
     var cMB=r.mb>=0?'var(--t)':'var(--r2)',cMN=r.mn>=0?'var(--g)':'var(--r2)';
@@ -2271,7 +2272,7 @@ function renderPerfGlobal(el){
   var gSS={bovin:{f:0,q:0}};for(i=0;i<pdvs.length;i++){var ssg=getSellStats(pdvs[i]);if(ssg.bovin){gSS.bovin.f+=ssg.bovin.fcfa;gSS.bovin.q+=ssg.bovin.qty;}}
   var gBpx=gSS.bovin.q>0?Math.round(gSS.bovin.f/gSS.bovin.q):0;var gBsp=gBpx-(PRIX.bovin||0);
   h+='<tr class="tot"><td>TOTAL</td><td></td><td style="color:var(--b2)">'+FK(gCA)+'</td><td style="color:var(--o2)">'+dvCostFml(gCost,costFmlByProd(['bovin','veau','poulet','agneau','poisson'],pdvs),'Co\u00fbt Achat \u2014 TOTAL')+'</td><td style="color:'+(gMB>=0?'var(--t)':'var(--r2)')+'">'+FK(gMB)+'</td><td>'+F(gMBp,1)+'%</td><td>'+FK(Math.round(gChg))+'</td>'+(cgCols?'<td style="color:var(--v2)">'+FK(CHARGE_GLOBALE)+'</td>':'')+'<td style="color:'+(gMN>=0?'var(--g)':'var(--r2)')+'">'+FK(gMN)+'</td><td>'+F(gMNp,1)+'%</td><td style="font-size:8px">'+(gBpx?'<span style="color:var(--b2)">'+FK(gBpx)+'</span> <span style="color:'+(gBsp>=0?'var(--g)':'var(--r2)')+'">'+FS(gBsp)+'</span>':'\u2014')+'</td></tr>';
-  h+='</tbody></table></div>';
+  h+='</tbody></table></div></details>';
 
   /* Day by day across all PdVs */
   var dateMap2={};
