@@ -97,6 +97,8 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 .leg-i{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:7px 10px;font-size:8px;color:var(--txd);line-height:1.4;display:flex;gap:8px;align-items:baseline}
 .leg-i .lk{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:9px;white-space:nowrap;min-width:52px}
 .perfPrix{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+details.paramWrap>summary span.arr{display:inline-block;transition:transform .2s}
+details.paramWrap[open]>summary span.arr{transform:rotate(90deg)}
 .perfPrix .pp{background:var(--s1);border:1px solid var(--bd);border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:6px}
 .perfPrix .pp label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--txd)}
 .perfPrix .pp input{background:var(--s2);border:1px solid var(--bd);color:var(--g2);font-family:'JetBrains Mono',monospace;font-size:11px;padding:3px 5px;border-radius:4px;width:56px;text-align:center}
@@ -1988,7 +1990,8 @@ function renderPrixInputs(pdv){
   var labels=['Boeuf','Veau','Poulet','Agneau','Poisson'];
   var colors=['#dc2626','#dc2626','#d97706','#6366f1','#06b6d4'];
   var units=['F/kg','F/kg','F/pcs','F/kg','F/kg'];
-  var h='<div class="perfPrix">';
+  var h='<details class="paramWrap" style="margin-bottom:12px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;overflow:hidden" open><summary style="display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:pointer;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);list-style:none;background:var(--s1)"><span class="arr" style="font-size:11px">&#9654;</span> \u2699\ufe0f Param\u00e8tres \u2014 prix d\u2019achat &amp; modes de calcul</summary><div style="padding:12px 14px 4px">';
+  h+='<div class="perfPrix">';
   /* Abats mode toggle — only shown when prix_achat_kg data is available from API */
   if(PRIX_AVEC_ABATS.bovin>0||PRIX_AVEC_ABATS.veau>0){
     h+='<div style="grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:6px;padding:7px 12px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.25);border-radius:7px">';
@@ -2057,6 +2060,7 @@ function renderPrixInputs(pdv){
     h+='<td style="padding:3px 8px;font-family:JetBrains Mono;font-size:10px;color:'+(spr>=0?'var(--g)':'var(--r2)')+'">'+FS(spr)+'</td></tr>';
   }
   h+='</tbody></table></div></details>';
+  h+='</div></details>';
   return h;
 }
 
