@@ -2041,6 +2041,7 @@ function renderPrixInputs(pdv){
     h+='</div>';
   }
   h+='</div>';
+  h+='</div></details>';
   /* Product-level cost overrides */
   h+='<details class="perfChg" style="margin-bottom:12px"><summary>\ud83c\udff7\ufe0f Co\u00fbt produit sp\u00e9cifique (0 = gratuit)</summary><div class="cg" style="margin-top:8px">';
   var ppk=Object.keys(PRIX_PRODUIT);
@@ -2060,7 +2061,6 @@ function renderPrixInputs(pdv){
     h+='<td style="padding:3px 8px;font-family:JetBrains Mono;font-size:10px;color:'+(spr>=0?'var(--g)':'var(--r2)')+'">'+FS(spr)+'</td></tr>';
   }
   h+='</tbody></table></div></details>';
-  h+='</div></details>';
   return h;
 }
 
