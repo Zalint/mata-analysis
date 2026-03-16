@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MATA TERMINAL</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#000;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:12px;-webkit-font-smoothing:antialiased;overflow:hidden}
+    /* TOP BAR */
+    #topbar{display:flex;align-items:center;justify-content:space-between;background:#000;border-bottom:1px solid #FF6B00;padding:0 16px;height:44px}
+    #topbar .brand{font-size:13px;font-weight:800;color:#FF6B00;letter-spacing:3px}
+    #topbar .meta{display:flex;gap:24px;font-size:10px;color:#666;letter-spacing:1px}
+    #topbar .meta span{color:#999}
+    #clock{color:#FF6B00;font-weight:700}
+    #bullImg{height:38px;width:auto;filter:drop-shadow(0 0 4px rgba(220,38,38,.5));opacity:.85}
+    #logoImg{height:34px;width:auto;opacity:.7}
+    /* MAIN */
+    #main{display:flex;flex-direction:column;align-items:center;justify-content:center;height:calc(100vh - 44px - 30px);padding:24px;gap:20px}
+    #prompt{font-size:10px;letter-spacing:2px;color:#666;text-transform:uppercase;align-self:flex-start;max-width:900px;width:100%}
+    #prompt span{color:#FF6B00}
+    /* GRID */
+    #grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px;width:100%}
+    .card{border:1px solid #1e1e1e;border-radius:2px;padding:20px 22px;cursor:pointer;transition:border-color .12s,background .12s;position:relative;background:#050505;outline:none}
+    .card:hover,.card.active{border-color:#FF6B00;background:#0d0800}
+    .card:hover .shortcut,.card.active .shortcut{color:#FF6B00;border-color:#FF6B00}
+    .card:hover .cta,.card.active .cta{color:#FF6B00}
+    .shortcut{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid #333;border-radius:2px;font-size:11px;font-weight:800;color:#555;margin-bottom:12px;transition:color .12s,border-color .12s}
+    .card-title{font-size:14px;font-weight:800;color:#fff;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+    .card-sub{font-size:9px;color:#FF6B00;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #1a1a1a}
+    .features{list-style:none;display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+    .features li{font-size:10px;color:#777;display:flex;align-items:baseline;gap:6px}
+    .features li::before{content:"›";color:#444;font-weight:700}
+    .features li b{color:#aaa;font-weight:500}
+    .cta{font-size:9px;color:#444;letter-spacing:1.5px;text-transform:uppercase;transition:color .12s}
+    .badge{position:absolute;top:12px;right:14px;font-size:8px;background:#FF6B0022;color:#FF6B00;border:1px solid #FF6B0044;border-radius:2px;padding:2px 7px;letter-spacing:1px;text-transform:uppercase}
+    /* BOTTOM BAR */
+    #bottombar{position:fixed;bottom:0;left:0;right:0;height:30px;background:#000;border-top:1px solid #1e1e1e;display:flex;align-items:center;padding:0 16px;gap:0}
+    .fkey{display:flex;align-items:center;gap:5px;padding:0 14px;border-right:1px solid #1e1e1e;height:100%;font-size:9px;color:#555;letter-spacing:.5px;cursor:pointer;transition:color .1s}
+    .fkey:hover{color:#FF6B00}
+    .fkey:first-child{padding-left:0}
+    .fkey kbd{background:#111;border:1px solid #2a2a2a;border-radius:2px;padding:1px 5px;font-family:inherit;font-size:9px;color:#888;font-weight:700}
+    #status{margin-left:auto;font-size:9px;color:#333;letter-spacing:1px}
+    #status .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#22C55E;margin-right:5px;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <img id="bullImg" src="/bull.svg" alt="">
+  <div class="meta">
+    <span id="dateStr">–</span>
+    <span id="clock">00:00:00</span>
+    <span class="brand">MATA TERMINAL</span>
+    <span>MATA GROUP SA</span>
+  </div>
+  <img id="logoImg" src="/mata_logo.svg" alt="Mata">
+</div>
+
+<div id="main">
+  <div id="prompt">SELECT FUNCTION &nbsp;<span>▮</span>&nbsp; USE <kbd style="background:#111;border:1px solid #222;border-radius:2px;padding:1px 5px;font-family:inherit;font-size:9px;color:#888">1</kbd> <kbd style="background:#111;border:1px solid #222;border-radius:2px;padding:1px 5px;font-family:inherit;font-size:9px;color:#888">2</kbd> OR CLICK
+  </div>
+
+  <div id="grid">
+
+    <div class="card" id="card1" tabindex="0" onclick="go('/analysis')" onkeydown="if(event.key==='Enter')go('/analysis')">
+      <div class="shortcut">1</div>
+      <div class="badge">ACTIF</div>
+      <div class="card-title">Mata Analysis</div>
+      <div class="card-sub">Analyse Opérationnelle Multi-Catégorie</div>
+      <ul class="features">
+        <li><b>Analyse Perration</b> — écart stock théorique vs ventes</li>
+        <li><b>Cash Mouvement</b> — ventes réelles / théoriques / écart</li>
+        <li><b>Perf PdV</b> — CA, coût d'achat, charges, marge nette</li>
+        <li><b>Catégories</b> — Boeuf · Bovin · Volaille · Ovin · Poisson</li>
+        <li><b>API</b> — chargement automatique par période</li>
+      </ul>
+      <div class="cta">PRESS 1 OR ENTER TO OPEN ›</div>
+    </div>
+
+    <div class="card" id="card2" tabindex="0" onclick="go('/reconciliation_matix_mata_bictorys.html')" onkeydown="if(event.key==='Enter')go('/reconciliation_matix_mata_bictorys.html')">
+      <div class="shortcut">2</div>
+      <div class="card-title">Réconciliation</div>
+      <div class="card-sub">Réconciliation des Encaissements</div>
+      <ul class="features">
+        <li><b>Ventes</b> — tableau de vente par PDV et date</li>
+        <li><b>Virements</b> — mata-depenses, imputés jour J ou J-1</li>
+        <li><b>Cash Bictorys</b> — Wave Money · Orange Money</li>
+        <li><b>Créances</b> — opérations crédit/débit</li>
+        <li><b>Modes</b> — API date range ou import Excel</li>
+      </ul>
+      <div class="cta">PRESS 2 OR ENTER TO OPEN ›</div>
+    </div>
+
+
+  </div>
+</div>
+
+<div id="bottombar">
+  <div class="fkey" onclick="go('/analysis')"><kbd>1</kbd> ANALYSIS</div>
+  <div class="fkey" onclick="go('/reconciliation_matix_mata_bictorys.html')"><kbd>2</kbd> RECONCILIATION</div>
+  <div class="fkey" onclick="go('/auth/logout')"><kbd>ESC</kbd> DÉCONNECTER</div>
+  <div id="status"><span class="dot"></span>CONNECTED</div>
+</div>
+
+<script>
+function go(url){ window.location.href = url; }
+
+// Clock
+function tick(){
+  const n = new Date();
+  const pad = v => String(v).padStart(2,'0');
+  document.getElementById('clock').textContent = pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds());
+  const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  document.getElementById('dateStr').textContent = days[n.getDay()]+' '+String(n.getDate()).padStart(2,'0')+' '+months[n.getMonth()]+' '+n.getFullYear();
+}
+tick(); setInterval(tick,1000);
+
+// Keyboard navigation
+let sel = 0;
+const cards = [document.getElementById('card1'), document.getElementById('card2')];
+const urls  = ['/analysis', '/reconciliation_matix_mata_bictorys.html'];
+
+function setActive(i){
+  cards.forEach((c,j) => c.classList.toggle('active', j===i));
+  sel = i;
+}
+setActive(0);
+
+document.addEventListener('keydown', e => {
+  if(e.key==='1'){ go(urls[0]); }
+  else if(e.key==='2'){ go(urls[1]); }
+  else if(e.key==='Escape'){ go('/auth/logout'); }
+  else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ setActive((sel+1)%cards.length); e.preventDefault(); }
+  else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ setActive((sel-1+cards.length)%cards.length); e.preventDefault(); }
+  else if(e.key==='Enter'){ go(urls[sel]); }
+});
+</script>
+</body>
+</html>

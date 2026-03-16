@@ -204,7 +204,8 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
 </div>
 <div id="UZ">
   <h1>Mata &middot; <em>Analysis</em></h1>
-  <a href="/reconciliation_matix_mata_bictorys.html" style="font-size:10px;color:var(--b2);text-decoration:none;margin-left:8px">R&eacute;conciliation Matrix</a>
+  <a href="/" style="font-size:10px;color:var(--tx3);text-decoration:none;margin-left:8px">&#8592; Terminal</a>
+  <a href="/reconciliation_matix_mata_bictorys.html" style="font-size:10px;color:var(--b2);text-decoration:none;margin-left:12px">R&eacute;conciliation Matrix</a>
   <a href="/auth/logout" style="font-size:10px;color:var(--tx3);text-decoration:none;margin-left:12px">Se d&eacute;connecter</a>
   <p style="max-width:520px;margin:0 auto 24px;line-height:1.7;font-size:11px">
     Outil d&rsquo;analyse op&eacute;rationnelle multi-cat&eacute;gorie pour les points de vente MATA.
@@ -687,12 +688,14 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
 
 /* Default API date range = current month */
 (function(){
-  var now=new Date(),y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0');
+  var now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  var first=new Date(y,m,1);
   var yesterday=new Date(now);yesterday.setDate(now.getDate()-1);
-  var yy=yesterday.getFullYear(),ym=String(yesterday.getMonth()+1).padStart(2,'0'),yd=String(yesterday.getDate()).padStart(2,'0');
+  var end=yesterday>=first?yesterday:first;
+  var fmt=function(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
   var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
-  if(d1)d1.value=y+'-'+m+'-01';
-  if(d2)d2.value=yy+'-'+ym+'-'+yd;
+  if(d1)d1.value=fmt(first);
+  if(d2)d2.value=fmt(end);
   /* Auto-restore cache on page load */
   var autoCache=getCacheInfo();
   if(autoCache&&autoCache.DATA&&Object.keys(autoCache.DATA).length>0){
@@ -1153,7 +1156,7 @@ function updateExcBox(){
 function buildFpBar(){
   var el=document.getElementById('fpBar'),cks=Object.keys(CATS),h='';
   for(var i=0;i<cks.length;i++){var c=CATS[cks[i]];if(i>0)h+='<div class="sep"></div>';h+='<label style="color:'+c.color+'">'+c.icon+'</label><input type="number" data-c="'+cks[i]+'" value="'+c.fp+'" min="0" max="20" step="0.5" class="fpC"><span class="u">%</span>';}
-  h+='<div class="sep"></div><button id="btnR">&larr;</button><button id="btnExport" style="background:var(--g);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce5 Excel</button><button id="btnPDF" style="background:var(--v);color:#fff;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcc4 PDF</button><button id="btnPacks" style="background:var(--t);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce6 Packs</button><button id="btnSave" style="background:#f59e0b;color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcbe Sauvegarder</button>';
+  h+='<div class="sep"></div><button id="btnR">&larr;</button><button id="btnExport" style="background:var(--g);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce5 Excel</button><button id="btnPDF" style="background:var(--v);color:#fff;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcc4 PDF</button><button id="btnPacks" style="background:var(--t);color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udce6 Packs</button><button id="btnSave" style="background:#f59e0b;color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">\ud83d\udcbe Sauvegarder</button><button id="btnCharts" style="background:#FF6B00;color:#000;font-weight:700;border:none;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:8px;margin-left:4px">&#9642; Charts</button>';
   el.innerHTML=h;
   el.querySelectorAll('.fpC').forEach(function(inp){inp.addEventListener('change',function(){CATS[this.dataset.c].fp=parseFloat(this.value)||0;render();});});
   document.getElementById('btnR').addEventListener('click',function(){document.getElementById('D').style.display='none';document.getElementById('UZ').style.display='block';});
@@ -1161,6 +1164,7 @@ function buildFpBar(){
   document.getElementById('btnPDF').addEventListener('click',exportPDF);
   document.getElementById('btnPacks').addEventListener('click',importPacks);
   document.getElementById('btnSave').addEventListener('click',saveSession);
+  document.getElementById('btnCharts').addEventListener('click',exportToCharts);
 }
 /*══════ API PERIOD ANALYSIS ══════*/
 var MATA_CACHE_KEY='mata_analysis_cache';
@@ -2129,6 +2133,8 @@ function renderPerfGlobal(el){
     gMN=gMB-gChg-CHARGE_GLOBALE;
   }else{for(i=0;i<rows.length;i++)rows[i].chg_glob=0;}
   var gMBp=gCA!==0?(gMB/gCA*100):0,gMNp=gCA!==0?(gMN/gCA*100):0;
+  /* Store for Charts export */
+  window.MATA_LAST_PERF={rows:rows,gCA:gCA,gCost:gCost,gMB:gMB,gChg:gChg+(CHARGE_GLOBALE||0),gMN:gMN,gMBp:gMBp,gMNp:gMNp};
 
   h+='<div class="kpis">';
   var gRStotal=0;for(i=0;i<pdvs.length;i++){var rsv=REVENU_SUPP[pdvs[i]]||0;if(rsv>0){var nDi=DATA[pdvs[i]]?DATA[pdvs[i]].length:0;gRStotal+=Math.round(rsv/30*nDi);}}
@@ -4071,6 +4077,66 @@ window.toggleTheme=function(){
   applyTheme();
 };
 applyTheme();
+
+/* ── Charts Export ── */
+function exportToCharts(){
+  if(!DATA||!Object.keys(DATA).length){alert('Aucune analyse chargée.');return;}
+  var pdvs=Object.keys(DATA);
+  var byDate={},byPdv={},byCat={},byProd={};
+  var CAT_MAP={bovin:'Bovin',veau:'Veau',poulet:'Volaille',agneau:'Ovin',poisson:'Poisson'};
+  pdvs.forEach(function(pdv){
+    var days=DATA[pdv];if(!days||!days.length)return;
+    byPdv[pdv]={ca:0,cost:0,chg:(CHARGES[pdv]||0)*days.filter(function(d){return d;}).length};
+    days.forEach(function(day){
+      if(!day||!day.date)return;
+      var dk=day.date.getFullYear()+'-'+String(day.date.getMonth()+1).padStart(2,'0')+'-'+String(day.date.getDate()).padStart(2,'0');
+      var ca=effectiveCA(day,pdv);
+      var cd=calcCostDay(day,pdv);
+      // accumulate byDate
+      if(!byDate[dk])byDate[dk]={ca:0,cost:0,byCat:{}};
+      byDate[dk].ca+=ca;byDate[dk].cost+=cd.total;
+      // accumulate byDate.byCat
+      Object.keys(CAT_MAP).forEach(function(k){
+        var label=CAT_MAP[k];
+        if(!byDate[dk].byCat[label])byDate[dk].byCat[label]={ca:0,cost:0};
+        if(cd.detail&&cd.detail[k])byDate[dk].byCat[label].cost+=cd.detail[k].cost||0;
+      });
+      // CA per category from product revenue
+      if(day.prods){Object.keys(day.prods).forEach(function(pn){
+        var p=day.prods[pn];if(!p)return;
+        var catLabel=p.cat||'Autres';
+        var pca=p.reelF||0;
+        if(!byDate[dk].byCat[catLabel])byDate[dk].byCat[catLabel]={ca:0,cost:0};
+        byDate[dk].byCat[catLabel].ca+=pca;
+        if(!byCat[catLabel])byCat[catLabel]={ca:0,cost:0};
+        byCat[catLabel].ca+=pca;
+        if(!byProd[pn])byProd[pn]={ca:0,cat:catLabel};
+        byProd[pn].ca+=pca;
+      });}
+      // accumulate byCat cost
+      Object.keys(CAT_MAP).forEach(function(k){
+        var label=CAT_MAP[k];
+        if(!byCat[label])byCat[label]={ca:0,cost:0};
+        if(cd.detail&&cd.detail[k])byCat[label].cost+=cd.detail[k].cost||0;
+      });
+      // accumulate byPdv
+      byPdv[pdv].ca+=ca;byPdv[pdv].cost+=cd.total;
+    });
+  });
+  // Use MATA_LAST_PERF for exact totals (includes MaaS, getChargeDaily, CHARGE_GLOBALE)
+  var perf=window.MATA_LAST_PERF||{};
+  if(perf.rows){perf.rows.forEach(function(r){if(byPdv[r.pdv]){byPdv[r.pdv].ca=r.ca;byPdv[r.pdv].cost=r.cost;byPdv[r.pdv].chg=r.chg+(r.chg_glob||0);byPdv[r.pdv].mb=r.mb;byPdv[r.pdv].mn=r.mn;}});}
+  var payload={
+    exportedAt:new Date().toISOString(),
+    periode:{debut:document.getElementById('apDebut').value,fin:document.getElementById('apFin').value},
+    modes:{abats:ABATS_MODE,prix_revient:PRIX_REVIENT_MODE},
+    byDate:byDate,byPdv:byPdv,byCat:byCat,byProd:byProd,
+    totals:{ca:perf.gCA||0,cost:perf.gCost||0,chg:perf.gChg||0,marginBrute:perf.gMB||0,marginNet:perf.gMN||0}
+  };
+  try{localStorage.setItem('mata_charts_data',JSON.stringify(payload));}
+  catch(e){alert('Données trop volumineuses pour localStorage. Essayez une période plus courte.');return;}
+  window.open('/charts.html','_blank');
+}
 
 /* ── JSON Export ── */
 window.exportAnalysis=function(){

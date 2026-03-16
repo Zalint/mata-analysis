@@ -4,19 +4,74 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Réconciliation MATA Group</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    :root{--bg:#04060b;--s1:#0a0e18;--s2:#111827;--bd:#1e2a40;--bd2:#283550;--tx:#e2e8f0;--txd:#94a3b8;--tx3:#64748b;--g:#22c55e;--g2:#4ade80;--r:#ef4444;--r2:#f87171;--o:#f59e0b;--o2:#fbbf24;--b:#3b82f6;--b2:#60a5fa;--v:#a78bfa;--v2:#c4b5fd;--t:#2dd4bf;--accent:#f97316;--accent2:#ea580c}
     * { box-sizing:border-box; margin:0; padding:0; }
-    body { background:#0D1117; }
+    body { background:var(--bg); color:var(--tx); font-family:'Instrument Sans',sans-serif; -webkit-font-smoothing:antialiased; }
+    #UZ { max-width:640px; margin:60px auto; text-align:center; padding:24px; }
+    #UZ h1 { font-size:22px; font-weight:700; margin-bottom:4px; }
+    #UZ h1 em { font-style:normal; background:linear-gradient(135deg,var(--g),var(--t)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .apHd { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--txd); margin-bottom:10px; }
+    #apBtnReco{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:7px;padding:9px 24px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.5px;transition:.15s;white-space:nowrap;font-family:inherit}
+    #apBtnReco:hover{opacity:.85}#apBtnReco:disabled{opacity:.7;cursor:not-allowed}
+    /* ── Bull loader ── */
+    #mataLoader{position:fixed;top:0;left:0;right:0;bottom:0;z-index:10000;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(4,6,11,.93);backdrop-filter:blur(4px)}
+    #mataLoader.active{display:flex}
+    .mataStage{position:relative;width:min(560px,84vw);height:115px;overflow:hidden}
+    .mataGround{position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent 0%,rgba(220,38,38,.5) 40%,rgba(220,38,38,.5) 80%,transparent 100%)}
+    .mataDustTrail{position:absolute;bottom:4px;display:flex;gap:3px;align-items:flex-end;animation:dustMove 2.6s ease-in-out infinite}
+    .mataDustTrail span{border-radius:50%;background:rgba(220,38,38,.45)}
+    .mataDustTrail span:nth-child(1){width:8px;height:8px;animation:dustPop 2.6s .02s ease-out infinite}
+    .mataDustTrail span:nth-child(2){width:5px;height:5px;animation:dustPop 2.6s .08s ease-out infinite}
+    .mataDustTrail span:nth-child(3){width:3px;height:3px;animation:dustPop 2.6s .14s ease-out infinite}
+    .mataBull{position:absolute;bottom:2px;left:0;width:115px;height:90px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(220,38,38,.6));transform-origin:center bottom;animation:bullCharge 2.6s ease-in-out infinite}
+    .mataTarget{position:absolute;bottom:2px;right:8px;width:62px;height:62px;object-fit:contain;border-radius:50%;overflow:hidden;animation:logoShake 2.6s ease-in-out infinite}
+    #mataLoader.finishing .mataTarget{animation:logoFall .95s cubic-bezier(.55,0,1,.45) forwards!important}
+    #mataLoaderStep{color:#a78bfa;font-size:9px;font-family:'JetBrains Mono',monospace;margin-top:14px;text-align:center;letter-spacing:.4px;animation:mataStepPulse 1.2s ease-in-out infinite}
+    .mataLoaderDots::after{content:'';animation:mataDots 1.4s steps(4,end) infinite}
+    @keyframes mataDots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
+    @keyframes bullCharge{
+      0%  {transform:translateX(-130px) scaleY(1) rotate(0deg)}
+      8%  {transform:translateX(-80px) scaleY(.92) rotate(-2deg)}
+      16% {transform:translateX(-30px) scaleY(1.06) rotate(1deg)}
+      24% {transform:translateX(50px) scaleY(.93) rotate(-2deg)}
+      32% {transform:translateX(130px) scaleY(1.06) rotate(1deg)}
+      40% {transform:translateX(220px) scaleY(.93) rotate(-2deg)}
+      46% {transform:translateX(310px) scaleY(1.06) rotate(-3deg)}
+      50% {transform:translateX(360px) scaleY(.78) rotate(6deg)}
+      54% {transform:translateX(350px) scaleY(1.12) rotate(-2deg)}
+      58% {transform:translateX(355px) scaleY(1) rotate(0deg)}
+      80% {transform:translateX(355px) scaleY(1) rotate(0deg)}
+      86% {transform:translateX(-130px) scaleY(1) rotate(0deg)}
+      100%{transform:translateX(-130px) scaleY(1) rotate(0deg)}
+    }
+    @keyframes dustMove{0%,8%{left:-20px;opacity:0}12%{opacity:1}50%{left:240px;opacity:1}54%{left:230px;opacity:.6}80%{left:230px;opacity:.3}84%{opacity:0;left:-20px}100%{opacity:0;left:-20px}}
+    @keyframes dustPop{0%,10%{transform:scale(1)}50%{transform:scale(1.5) translateY(-4px)}100%{transform:scale(1)}}
+    @keyframes logoShake{0%,46%,65%,100%{transform:rotate(0deg) scale(1)}50%{transform:rotate(-12deg) scale(1.15)}54%{transform:rotate(8deg) scale(.9)}58%{transform:rotate(-5deg) scale(1.08)}62%{transform:rotate(3deg) scale(.97)}}
+    @keyframes logoFall{0%{transform:rotate(0deg) scale(1) translateY(0);opacity:1}18%{transform:rotate(-6deg) scale(1.12) translateY(-10px);opacity:1}100%{transform:rotate(28deg) scale(.75) translateY(220px);opacity:0}}
+    @keyframes mataStepPulse{0%,100%{opacity:1}50%{opacity:.45}}
+    .rHd h1 { font-size:16px; font-weight:700; }
+    .rHd h1 em { font-style:normal; background:linear-gradient(135deg,var(--g),var(--t)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
     .dropzone {
       display:flex; flex-direction:column; align-items:center; justify-content:center;
-      gap:8px; border:2px dashed #30363D; border-radius:12px; padding:20px 16px;
-      cursor:pointer; background:#1C2128; transition:all 0.2s; min-height:110px;
+      gap:8px; border:2px dashed var(--bd2); border-radius:12px; padding:20px 16px;
+      cursor:pointer; background:var(--s2); transition:all 0.2s; min-height:110px;
     }
-    .dropzone:hover, .dropzone.drag { border-color:#F97316; background:#7C3A0E33; }
-    .dropzone.loaded { border-color:#22C55E; background:#14532D33; }
+    .dropzone:hover, .dropzone.drag { border-color:var(--accent); background:#f9731608; }
+    .dropzone.loaded { border-color:var(--g); background:#22c55e08; }
   </style>
 </head>
 <body>
+  <div id="mataLoader">
+    <div class="mataStage">
+      <div class="mataGround"></div>
+      <div class="mataDustTrail"><span></span><span></span><span></span></div>
+      <img src="/bull.svg" class="mataBull" alt="">
+      <img src="/mata_logo.svg" class="mataTarget" alt="Mata">
+    </div>
+    <div id="mataLoaderStep"><span class="mataLoaderDots"></span></div>
+  </div>
   <script src="auth-guard.js"></script>
   <div id="app"></div>
   <script>/*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
@@ -52,11 +107,11 @@ License: MIT
   <script>
 // ─── PALETTE ──────────────────────────────────────────────────────────────────
 const C = {
-  bg:"#0D1117", surface:"#161B22", border:"#30363D",
-  accent:"#F97316", accentDim:"#7C3A0E", blue:"#2E75B6",
-  green:"#22C55E", greenDim:"#14532D", red:"#EF4444",
-  redDim:"#7F1D1D", yellow:"#EAB308", yellowDim:"#713F12",
-  text:"#E6EDF3", muted:"#8B949E", lightBg:"#1C2128",
+  bg:"var(--bg)", surface:"var(--s1)", border:"var(--bd)",
+  accent:"var(--accent)", accentDim:"#7C3A0E", blue:"var(--b)",
+  green:"var(--g)", greenDim:"#14532D", red:"var(--r)",
+  redDim:"#7F1D1D", yellow:"var(--o2)", yellowDim:"#713F12",
+  text:"var(--tx)", muted:"var(--txd)", lightBg:"var(--s2)",
 };
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
@@ -71,6 +126,17 @@ const state = {
   // Default: Mon(1)->-2(Sat), all others->-1
   dayShift: { 0:-1, 1:-2, 2:-1, 3:-1, 4:-1, 5:-1, 6:-1 },
   showDayShift: false,
+  importMode: "excel",   // "excel" | "api"
+  apiLoading: false,
+  apiDates: (function() {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    const endDate = yesterday >= firstOfMonth ? yesterday : firstOfMonth;
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return { start: fmt(firstOfMonth), end: fmt(endDate) };
+  })(),
+  apiStatus: {},         // { ventes, virements, cash, creances } → "loading"|"ok"|"error:..."
   thresholds: { ok: 100, warn: 100000 },
   expandedRow: null,
   excludedDates: new Set(),
@@ -101,9 +167,19 @@ function parseFrDate(s) {
 }
 function parseDataDate(s) {
   if (!s) return null;
-  if (s.includes("T")) return s.split("T")[0];
-  const [d,m,y] = s.split("-");
-  return `20${y}-${m}-${d}`;
+  const raw = String(s).trim();
+  // Full timestamp (has time part) → parse as local date to avoid UTC offset shift
+  if (raw.includes("T") || raw.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(raw)) {
+    const d = new Date(raw);
+    if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  const str = raw.split("T")[0].trim();
+  const parts = str.split("-");
+  if (parts.length !== 3) return str;
+  const [a, b, c] = parts;
+  if (a.length === 4) return str;           // already YYYY-MM-DD
+  if (c.length === 4) return `${c}-${b}-${a}`;  // DD-MM-YYYY → YYYY-MM-DD
+  return `20${c}-${b}-${a}`;               // DD-MM-YY → YYYY-MM-DD
 }
 function parseExcelDate(val) {
   if (typeof val === "number") {
@@ -289,9 +365,10 @@ function reconcile() {
     for (const k of Object.keys(versMap)) delete versMap[k];
   }
 
+  const { start, end } = state.apiDates;
   const allDates = [...new Set([
     ...Object.keys(ventesMap), ...Object.keys(versMap), ...Object.keys(cashMap), ...Object.keys(virMap)
-  ])].sort();
+  ])].filter(d => (!start || d >= start) && (!end || d <= end)).sort();
 
   let cumGap = 0;
   const rows = allDates.map(date => {
@@ -476,7 +553,7 @@ function renderTablePreview(key) {
     </div>
     <div style="max-height:240px;overflow:auto;border-radius:8px;border:1px solid ${C.border}">
       <table style="width:100%;border-collapse:collapse;font-size:10px;white-space:nowrap">
-        <thead><tr style="background:#0D1117;position:sticky;top:0">
+        <thead><tr style="background:${C.bg};position:sticky;top:0">
           <th style="padding:6px 10px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">__date</th>
           ${cols.map(c=>`<th style="padding:6px 10px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${c}</th>`).join("")}
         </tr></thead>
@@ -568,7 +645,7 @@ function renderDrillDown(date, result) {
     if (s.rows.length === 0) return `<div style="color:${C.muted};font-size:10px;font-style:italic">Aucune ligne</div>`;
     return `<table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
       <thead><tr>${s.cols.map(c=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${c}</th>`).join("")}</tr></thead>
-      <tbody>${s.rows.map((r,i)=>`<tr style="background:${i%2===0?'#0D1117':'#161B22'}">${
+      <tbody>${s.rows.map((r,i)=>`<tr style="background:${i%2===0?C.bg:C.surface}">${
         s.cols.map(c => {
           const val = r[c.toLowerCase().replace(/ /g,'_')] ?? r[c] ?? "";
           const isNum = typeof val === 'number' || (typeof val === 'string' && !isNaN(val) && val !== '');
@@ -585,7 +662,7 @@ function renderDrillDown(date, result) {
           ${["Description","Réf.","Date orig.","Imputation","Crédit",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
         </tr></thead>
         <tbody>
-          ${vers.map((r,i)=>`<tr style="background:${i%2===0?'#0D1117':'#161B22'};opacity:${r.excluded?0.4:1}">
+          ${vers.map((r,i)=>`<tr style="background:${i%2===0?C.bg:C.surface};opacity:${r.excluded?0.4:1}">
             <td style="padding:5px 8px;color:${r.excluded?C.muted:C.text};text-decoration:${r.excluded?'line-through':'none'};max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.desc}</td>
             <td style="padding:5px 8px;color:${C.muted};white-space:nowrap;font-size:9px">${r.ref||""}</td>
             <td style="padding:5px 8px;color:${C.muted};white-space:nowrap">${r.origDate}</td>
@@ -595,7 +672,7 @@ function renderDrillDown(date, result) {
                 placeholder="YYYY-MM-DD ou JJ-MM-AAAA"
                 onblur="setVersOverrideDate('${r.id}', this.value, '${r.autoDate}')"
                 onkeydown="if(event.key==='Enter'){this.blur();}"
-                style="background:${r.overrideDate?'#2E75B622':'#0D1117'};color:${r.overrideDate?C.accent:r.shifted?C.yellow:C.muted};border:1px solid ${r.overrideDate?C.accent:C.border};border-radius:4px;padding:2px 6px;font-family:inherit;font-size:10px;width:100px"/>
+                style="background:${r.overrideDate?'#2E75B622':C.bg};color:${r.overrideDate?C.accent:r.shifted?C.yellow:C.muted};border:1px solid ${r.overrideDate?C.accent:C.border};border-radius:4px;padding:2px 6px;font-family:inherit;font-size:10px;width:100px"/>
               ${r.shifted&&!r.overrideDate?`<span style="color:${C.yellow};font-size:9px">✦</span>`:""}
               ${r.overrideDate?`<span style="color:${C.accent};font-size:9px" title="Override manuel">✎</span>`:""}
             </td>
@@ -619,7 +696,7 @@ function renderDrillDown(date, result) {
           ${((result.virDetail||{})[date]||[]).map((r,i)=>{
             const virId = makeItemId(date, r.client, r.val, "vir");
             const excl = !!state.virExcludes[virId];
-            return `<tr style="background:${i%2===0?'#0D1117':'#161B22'};opacity:${excl?0.4:1}">
+            return `<tr style="background:${i%2===0?C.bg:C.surface};opacity:${excl?0.4:1}">
               <td style="padding:5px 8px;color:${excl?C.muted:C.text};text-decoration:${excl?'line-through':'none'}">${r.client}</td>
               <td style="padding:5px 8px;color:${C.muted}">${r.origDate}</td>
               <td style="padding:5px 8px;color:#34D399;font-weight:700;text-align:right">${fmt(r.val)}</td>
@@ -641,7 +718,7 @@ function renderDrillDown(date, result) {
         <tbody>
           ${creds.map((r,i)=>{
             const excl = !!state.credExcludes[r.id];
-            return `<tr style="background:${i%2===0?'#0D1117':'#161B22'};opacity:${excl?0.4:1}">
+            return `<tr style="background:${i%2===0?C.bg:C.surface};opacity:${excl?0.4:1}">
               <td style="padding:5px 8px;color:${excl?C.muted:C.text};text-decoration:${excl?'line-through':'none'}">${r.client}</td>
               <td style="padding:5px 8px;color:${C.muted}">${r.portfolio.replace("CREANCE_","")}</td>
               <td style="padding:5px 8px;color:${C.yellow};font-weight:700;text-align:right">${fmt(r.montant)}</td>
@@ -663,7 +740,7 @@ function renderDrillDown(date, result) {
         <tbody>
           ${rembs.map((r,i)=>{
             const excl = !!state.rembExcludes[r.id];
-            return `<tr style="background:${i%2===0?'#0D1117':'#161B22'};opacity:${excl?0.4:1}">
+            return `<tr style="background:${i%2===0?C.bg:C.surface};opacity:${excl?0.4:1}">
               <td style="padding:5px 8px;color:${excl?C.muted:C.text};text-decoration:${excl?'line-through':'none'}">${r.client}</td>
               <td style="padding:5px 8px;color:${C.muted}">${r.portfolio.replace("CREANCE_","")}</td>
               <td style="padding:5px 8px;color:${C.green};font-weight:700;text-align:right">${fmt(r.montant)}</td>
@@ -959,21 +1036,31 @@ function renderImport() {
     </div>`;
 
   return `
-    <div style="margin-bottom:28px">
-      <div style="font-size:11px;color:${C.muted};text-transform:uppercase;letter-spacing:2px;margin-bottom:14px">Importer les fichiers</div>
-      ${renderBulkZone()}
-      <div style="font-size:10px;color:${C.muted};margin-bottom:10px;text-align:center">— ou importer un par un —</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">${dropzones}</div>
-      ${previews}
-      ${filterSection}
-      <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
-        <button onclick="handleAnalyze()" ${!allLoaded?"disabled":""}
-          style="background:${allLoaded?C.accent:C.border};color:${allLoaded?"#fff":C.muted};border:none;border-radius:8px;padding:12px 28px;font-family:inherit;font-weight:800;font-size:14px;cursor:${allLoaded?"pointer":"not-allowed"}">
-          ▶ Lancer l'analyse
-        </button>
-        ${!allLoaded?`<span style="font-size:11px;color:${C.muted}">Fichiers manquants : ${["ventes","cash","data"].filter(k=>!state.rawData[k]).map(k=>({"ventes":"Ventes","cash":"Cash","data":"Créances"})[k]).join(", ")}${(!state.rawData.versements && !state.rawData.virements) ? ", Versements ou Virements" : ""}</span>`:""}
+    <div style="margin-bottom:28px;text-align:left">
+      <div style="background:${C.surface};border:1px solid ${C.border};border-radius:8px;padding:12px 16px;margin-bottom:12px">
+        <div class="apHd">⚡ Réconciliation par période — chargement API</div>
+        ${renderApiImport()}
       </div>
-      ${state.error?`<div style="margin-top:10px;color:${C.red};font-size:12px">⚠ ${state.error}</div>`:""}
+      <details style="border:1px solid ${C.border};border-radius:8px;overflow:hidden;margin-bottom:12px">
+        <summary style="padding:10px 14px;cursor:pointer;font-size:9px;color:${C.muted};font-weight:700;text-transform:uppercase;letter-spacing:1.5px;list-style:none;display:flex;align-items:center;gap:6px;background:${C.surface}">
+          <span style="font-size:10px">▶</span> Importer manuellement les fichiers Excel
+        </summary>
+        <div style="padding:14px">
+          ${renderBulkZone()}
+          <div style="font-size:10px;color:${C.muted};margin-bottom:10px;text-align:center">— ou importer un par un —</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">${dropzones}</div>
+          ${previews}
+          ${filterSection}
+          <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
+            <button onclick="handleAnalyze()" ${!allLoaded?"disabled":""}
+              style="background:${allLoaded?C.accent:C.border};color:${allLoaded?"#fff":C.muted};border:none;border-radius:8px;padding:12px 28px;font-family:inherit;font-weight:800;font-size:14px;cursor:${allLoaded?"pointer":"not-allowed"}">
+              ▶ Lancer l'analyse
+            </button>
+            ${!allLoaded?`<span style="font-size:11px;color:${C.muted}">Fichiers manquants : ${["ventes","cash","data"].filter(k=>!state.rawData[k]).map(k=>({"ventes":"Ventes","cash":"Cash","data":"Créances"})[k]).join(", ")}${(!state.rawData.versements && !state.rawData.virements) ? ", Versements ou Virements" : ""}</span>`:""}
+          </div>
+          ${state.error?`<div style="margin-top:10px;color:${C.red};font-size:12px">⚠ ${state.error}</div>`:""}
+        </div>
+      </details>
     </div>`;
 }
 
@@ -988,8 +1075,7 @@ function renderKPIs(T) {
     ...(showVir ? [{ label:"Virements (F)", value:T.virements, color:"#34D399" }] : []),
     { label:"Créances accordées (D)",value:T.creances,       color:C.yellow },
     { label:"Remboursements (E)",     value:T.remboursements, color:C.green },
-    { label:"Gap Total",             value:T.gap,            color:Math.abs(T.gap)<500000?C.green:C.red,
-      sub:Math.abs(T.gap)<500000?"✅ Pas de trou de caisse":"⚠️ À investiguer" },
+    { label:"Gap Total",             value:T.gap,            color:Math.abs(T.gap)<500000?C.green:C.red },
   ];
   return `<div style="display:grid;grid-template-columns:repeat(${showVir?6:6},1fr);gap:10px;margin-bottom:24px">
     ${cards.map(c=>`<div style="background:${C.surface};border:1px solid ${C.border};border-radius:12px;padding:16px 20px">
@@ -1030,7 +1116,7 @@ function renderReco(result) {
   const headers = ["","Date","Ventes (A)",...(showVers?["Versements (B)"]:[]),"Cash Bictorys (C)",...(showVir?["Virements (F)"]:[]),"Créances (D)","Remboursements (E)","Encaissement","GAP A−Enc.","GAP Cumulé","Statut",""];
   return `<div style="background:${C.surface};border:1px solid ${C.border};border-top:none;border-radius:0 8px 8px 8px;overflow:auto">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
-      <thead><tr style="background:#1C2128">
+      <thead><tr style="background:${C.lightBg}">
         ${headers.map(h=>`<th style="padding:12px 10px;color:${C.muted};font-weight:700;text-align:right;border-bottom:1px solid ${C.border};font-size:10px;white-space:nowrap">${h}</th>`).join("")}
       </tr></thead>
       <tbody>
@@ -1073,7 +1159,7 @@ function renderReco(result) {
         ${state.expandedRow===r.date ? renderDrillDown(r.date, result) : ""}`;
         }).join("")}
         ${[...state.excludedDates].sort().map(date => `
-          <tr style="background:#0D1117;opacity:0.4">
+          <tr style="background:${C.bg};opacity:0.4">
             <td style="padding:7px 10px;text-align:center">
               <input type="checkbox" onchange="toggleExclude('${date}')"
                 style="cursor:pointer;accent-color:${C.accent};width:14px;height:14px"/>
@@ -1081,7 +1167,7 @@ function renderReco(result) {
             <td style="padding:7px 10px;color:${C.muted};text-align:right;white-space:nowrap;text-decoration:line-through">${date}</td>
             <td colspan="10" style="padding:7px 10px;color:${C.muted};font-size:10px;font-style:italic">— Exclue de l'analyse —</td>
           </tr>`).join("")}
-        <tr style="background:#1C2128;border-top:2px solid ${C.border}">
+        <tr style="background:${C.lightBg};border-top:2px solid ${C.border}">
           <td style="padding:11px 10px;font-weight:800;color:${C.text};text-align:right"></td>
           <td style="padding:11px 10px;font-weight:800;color:${C.text};text-align:right">TOTAL</td>
           ${[T.ventes,...(showVers?[T.versements]:[]),T.cash,...(showVir?[T.virements]:[]),T.creances,T.remboursements,T.encaissement].map(v=>
@@ -1171,7 +1257,7 @@ function renderCreances(result) {
   const totSolde= sorted.reduce((s,r)=>s+r.solde,0);
   return `<div style="background:${C.surface};border:1px solid ${C.border};border-top:none;border-radius:0 8px 8px 8px;overflow:auto">
     <table style="width:100%;border-collapse:collapse;font-size:11px">
-      <thead><tr style="background:#1C2128">
+      <thead><tr style="background:${C.lightBg}">
         ${["Portfolio","Client","Créances","Remboursements","Solde ouvert"].map(h=>
           `<th style="padding:11px 12px;color:${C.muted};font-weight:700;text-align:${["Portfolio","Client"].includes(h)?"left":"right"};border-bottom:1px solid ${C.border};font-size:10px">${h}</th>`
         ).join("")}
@@ -1189,7 +1275,7 @@ function renderCreances(result) {
             <td style="padding:9px 12px;text-align:right;font-weight:800;color:${soldeColor}">${fmt(r.solde)}${tag}</td>
           </tr>`;
         }).join("")}
-        <tr style="background:#1C2128;border-top:2px solid ${C.border}">
+        <tr style="background:${C.lightBg};border-top:2px solid ${C.border}">
           <td colspan="2" style="padding:11px 12px;font-weight:800;color:${C.text}">TOTAL</td>
           <td style="padding:11px 12px;text-align:right;font-weight:800;color:${C.text}">${fmt(totAcc)}</td>
           <td style="padding:11px 12px;text-align:right;font-weight:800;color:${C.text}">${fmt(totRemb)}</td>
@@ -1205,24 +1291,41 @@ function render() {
   const result = state.result;
   const T = result ? totals(result.rows) : null;
   document.getElementById("app").innerHTML = `
-    <div style="min-height:100vh;background:${C.bg};color:${C.text};font-family:'IBM Plex Mono','Courier New',monospace;padding-bottom:60px">
-      <div style="background:${C.surface};border-bottom:1px solid ${C.border};padding:20px 32px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <div style="font-size:10px;color:${C.accent};letter-spacing:3px;text-transform:uppercase;margin-bottom:4px">MATA Group SA</div>
-          <div style="font-size:20px;font-weight:800">Réconciliation des Encaissements</div>
-        </div>
-        ${result?`<button onclick="exportXLSX()" style="background:${C.accent};color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer">⬇ Exporter Excel</button>`:""}
-      </div>
-      <div style="max-width:1200px;margin:0 auto;padding:28px 24px">
-        ${renderImport()}
-        ${result ? `
+    <div style="min-height:100vh;background:${C.bg};color:${C.text};padding-bottom:60px">
+      ${result ? `
+        <div style="max-width:1200px;margin:0 auto;padding:28px 24px">
+          <div class="rHd" style="display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid ${C.border};margin-bottom:20px">
+            <div>
+              <h1>Mata &middot; <em>Réconciliation</em></h1>
+              <div style="margin-top:5px;display:flex;gap:12px;flex-wrap:wrap">
+                <a href="/" style="font-size:10px;color:${C.muted};text-decoration:none">← Terminal</a>
+                <a href="/analysis" style="font-size:10px;color:#60a5fa;text-decoration:none">Analysis</a>
+                <a href="#" onclick="state.result=null;render();return false" style="font-size:10px;color:${C.muted};text-decoration:none">← Changer période</a>
+                <a href="/auth/logout" style="font-size:10px;color:${C.muted};text-decoration:none">Se déconnecter</a>
+              </div>
+            </div>
+            <button onclick="exportXLSX()" style="background:${C.accent};color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer">⬇ Exporter Excel</button>
+          </div>
           ${renderKPIs(T)}
           ${renderTabs()}
           ${state.tab==="reco"     ? renderReco(result)     : ""}
           ${state.tab==="gap"      ? renderGap(result)      : ""}
           ${state.tab==="creances" ? renderCreances(result) : ""}
-        ` : `<div style="text-align:center;padding:60px 0;color:${C.muted}"><div style="font-size:40px;margin-bottom:12px">📂</div><div style="font-size:14px">Importez les 3 fichiers + Versements ou Virements et lancez l'analyse</div></div>`}
-      </div>
+        </div>
+      ` : `
+        <div id="UZ">
+          <h1>Mata &middot; <em>Réconciliation</em></h1>
+          <div style="margin-bottom:20px">
+            <a href="/" style="font-size:10px;color:${C.muted};text-decoration:none">← Terminal</a>
+            <a href="/analysis" style="font-size:10px;color:#60a5fa;text-decoration:none;margin-left:12px">Analysis</a>
+            <a href="/auth/logout" style="font-size:10px;color:${C.muted};text-decoration:none;margin-left:12px">Se déconnecter</a>
+          </div>
+          <p style="color:${C.muted};font-size:11px;margin-bottom:24px;line-height:1.6;max-width:480px;margin-left:auto;margin-right:auto">
+            Outil de réconciliation des encaissements MATA Group SA — ventes, virements, cash et créances.
+          </p>
+          ${renderImport()}
+        </div>
+      `}
     </div>`;
 }
 
@@ -1233,6 +1336,139 @@ function handleDrop(e, key) {
   const f = e.dataTransfer.files[0];
   if (f) processFile(key, f);
 }
+// ─── API MODE ─────────────────────────────────────────────────────────────────
+function renderApiImport() {
+  const loading = state.apiLoading;
+  return `
+    <div>
+      <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:9px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Date début</div>
+          <input type="date" value="${state.apiDates.start}"
+            oninput="state.apiDates.start=this.value"
+            style="background:${C.lightBg};color:${C.text};border:1px solid ${C.border};border-radius:6px;padding:7px 12px;font-family:inherit;font-size:13px"/>
+        </div>
+        <div>
+          <div style="font-size:9px;color:${C.muted};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Date fin</div>
+          <input type="date" value="${state.apiDates.end}"
+            oninput="state.apiDates.end=this.value"
+            style="background:${C.lightBg};color:${C.text};border:1px solid ${C.border};border-radius:6px;padding:7px 12px;font-family:inherit;font-size:13px"/>
+        </div>
+        <button id="apBtnReco" onclick="launchApiAndAnalyze()" ${loading?"disabled":""}>
+          ${loading ? `<span class="apSpin"></span> Chargement\u2026` : `\u25B6 Lancer l\u2019analyse`}
+        </button>
+      </div>
+      ${state.error?`<div style="margin-top:10px;color:${C.red};font-size:12px">\u26A0 ${state.error}</div>`:""}
+    </div>`;
+}
+
+async function launchApiAndAnalyze() {
+  const { start, end } = state.apiDates;
+  if (!start || !end) { state.error = "Veuillez saisir les dates de début et de fin"; render(); return; }
+  state.error = null;
+  state.apiLoading = true;
+  render();
+  // Bull loader
+  const _ml = document.getElementById('mataLoader');
+  const _ms = document.getElementById('mataLoaderStep');
+  const _setStep = msg => { if(_ms) _ms.innerHTML = msg + '<span class="mataLoaderDots"></span>'; };
+  if(_ml) _ml.classList.add('active');
+  _setStep('Chargement Ventes · Virements · Cash · Créances');
+  let _done = 0;
+  const _tick = label => { _done++; _setStep(`${label} ✓ — ${_done}/4 sources chargées`); };
+
+  // For Bictorys: end_date = day after end at midnight (to include the full end day)
+  const endDatePlus1 = new Date(end + "T00:00:00Z");
+  endDatePlus1.setUTCDate(endDatePlus1.getUTCDate() + 1);
+  const bictorysEnd = endDatePlus1.toISOString().replace(".000Z", "+00:00");
+  const bictorysStart = start + "T00:00:00+00:00";
+
+  await Promise.allSettled([
+    fetch(`/api/external/ventes?dateDebut=${start}&dateFin=${end}`)
+      .then(r => r.json())
+      .then(data => {
+        const rows = Array.isArray(data) ? data : (data.ventes || data.data || []);
+        state.rawData.ventes = rows.map(row => {
+          const raw = row["Date"] || row["date"];
+          return { ...row, __date: parseDataDate(raw) };
+        }).filter(row => row.__date && (!start || row.__date >= start) && (!end || row.__date <= end));
+        state.apiStatus.ventes = "ok"; _tick('Ventes');
+      })
+      .catch(e => { state.apiStatus.ventes = "error:" + e.message; _tick('Ventes'); }),
+
+    fetch(`/api/proxy/virements?date_debut=${start}&date_fin=${end}`)
+      .then(r => r.json())
+      .then(data => {
+        const rows = Array.isArray(data) ? data : (data.operations || data.data || data.virements || []);
+        state.rawData.virements = rows.map(row => {
+          const raw = row["date"] || row["Date"] || row["date_operation"];
+          return {
+            ...row,
+            __date: parseDataDate(raw),
+            "Valeur (FCFA)": row["Valeur (FCFA)"] || row["valeur"] || row["montant"] || row["Montant"] || 0,
+            "Client": row["Client"] || row["client"] || ""
+          };
+        }).filter(row => row.__date && (!start || row.__date >= start) && (!end || row.__date <= end));
+        state.apiStatus.virements = "ok"; state.virMode = "jour_j"; _tick('Virements');
+      })
+      .catch(e => { state.apiStatus.virements = "error:" + e.message; _tick('Virements'); }),
+
+    fetch(`/api/proxy/bictorys?start_date=${encodeURIComponent(bictorysStart)}&end_date=${encodeURIComponent(bictorysEnd)}`)
+      .then(r => r.json())
+      .then(data => {
+        const rows = Array.isArray(data) ? data : (data.data || data.transactions || data.results || []);
+        state.rawData.cash = rows
+          .filter(row => !row.status || row.status === "succeeded")
+          .map(row => {
+            const ts = row.timestamp || row.created_at || "";
+            const date = ts ? (() => { const d = new Date(ts); return isNaN(d) ? String(ts).split("T")[0] : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : null;
+            return { ...row, amount: row.amount || 0, __date: date };
+          }).filter(row => row.__date && (!start || row.__date >= start) && (!end || row.__date <= end));
+        state.apiStatus.cash = "ok"; _tick('Cash Bictorys');
+      })
+      .catch(e => { state.apiStatus.cash = "error:" + e.message; _tick('Cash Bictorys'); }),
+
+    fetch(`/api/proxy/creances?date_debut=${start}&date_fin=${end}`)
+      .then(r => r.json())
+      .then(data => {
+        const rows = Array.isArray(data) ? data : (data.data || data.operations || []);
+        state.rawData.data = rows.map(row => {
+          const raw = row["date_operation"] || row["Date"] || row["date"];
+          const date = raw ? parseDataDate(String(raw)) : null;
+          return { ...row, __date: date };
+        }).filter(row => row.__date && (!start || row.__date >= start) && (!end || row.__date <= end));
+        state.apiStatus.creances = "ok"; _tick('Créances');
+      })
+      .catch(e => { state.apiStatus.creances = "error:" + e.message; _tick('Créances'); }),
+  ]);
+
+  state.apiLoading = false;
+  // Wait for bull to start a fresh cycle, then at impact (1300ms = 50% of 2.6s) trigger logo fall
+  const _bullImg = _ml ? _ml.querySelector('.mataBull') : null;
+  const _triggerFinish = () => {
+    setTimeout(() => {
+      if(_ml) _ml.classList.add('finishing');
+      setTimeout(() => { _ml.classList.remove('active','finishing'); }, 1000);
+    }, 1300);
+  };
+  if(_bullImg) _bullImg.addEventListener('animationiteration', _triggerFinish, {once:true});
+  else _triggerFinish();
+  const errors = ["ventes","virements","cash","creances"].filter(k => (state.apiStatus[k]||"").startsWith("error:"));
+  if (errors.length) {
+    state.error = "Erreur : " + errors.map(k => k + " (" + state.apiStatus[k].replace("error:","") + ")").join(", ");
+    render();
+    return;
+  }
+  try {
+    state.result = reconcile();
+    state.tab = "reco";
+  } catch(e) {
+    state.error = "Erreur analyse : " + e.message;
+  }
+  render();
+}
+window.launchApiAndAnalyze = launchApiAndAnalyze;
+
 function handleFileInput(e, key) {
   const f = e.target.files[0];
   if (f) processFile(key, f);

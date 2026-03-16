@@ -159,7 +159,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* Serve HTML */
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/landing.html')) {
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'landing.html'), 'utf8');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+    return;
+  }
+  if (req.method === 'GET' && (req.url === '/charts' || req.url === '/charts.html')) {
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'charts.html'), 'utf8');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(html);
+    return;
+  }
+  if (req.method === 'GET' && (req.url === '/analysis' || req.url === '/index.html')) {
     const html = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
@@ -199,6 +211,54 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: { message: err.message } }));
       }
     });
+    return;
+  }
+
+  /* Proxy: Virements (mata-depenses) */
+  if (req.method === 'GET' && req.url.startsWith('/api/proxy/virements')) {
+    try {
+      const params = new URL(req.url, 'http://localhost').searchParams;
+      const key = process.env.DEPENSES_API_KEY;
+      if (!key) { res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:'DEPENSES_API_KEY not configured'})); return; }
+      const url = `https://mata-depenses-management.onrender.com/external/api/virement-mensuel?date_debut=${params.get('date_debut')}&date_fin=${params.get('date_fin')}&api_key=${key}`;
+      const extRes = await fetch(url);
+      const body = await extRes.text();
+      res.writeHead(extRes.status, {'Content-Type':'application/json; charset=utf-8'});
+      res.end(body);
+    } catch(err) { res.writeHead(502, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:err.message})); }
+    return;
+  }
+
+  /* Proxy: Créances (mata-depenses) */
+  if (req.method === 'GET' && req.url.startsWith('/api/proxy/creances')) {
+    try {
+      const params = new URL(req.url, 'http://localhost').searchParams;
+      const key = process.env.DEPENSES_API_KEY;
+      if (!key) { res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:'DEPENSES_API_KEY not configured'})); return; }
+      const url = `https://mata-depenses-management.onrender.com/external/api/creance/operations?date_debut=${params.get('date_debut')}&date_fin=${params.get('date_fin')}&api_key=${key}`;
+      const extRes = await fetch(url);
+      const body = await extRes.text();
+      res.writeHead(extRes.status, {'Content-Type':'application/json; charset=utf-8'});
+      res.end(body);
+    } catch(err) { res.writeHead(502, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:err.message})); }
+    return;
+  }
+
+  /* Proxy: Cash Bictorys */
+  if (req.method === 'GET' && req.url.startsWith('/api/proxy/bictorys')) {
+    try {
+      const params = new URL(req.url, 'http://localhost').searchParams;
+      const key = process.env.BICTORYS_API_KEY;
+      if (!key) { res.writeHead(500, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:'BICTORYS_API_KEY not configured'})); return; }
+      const bUrl = new URL('https://api.bictorys.com/pay/v1/transactions');
+      bUrl.searchParams.set('start_date', params.get('start_date'));
+      bUrl.searchParams.set('end_date', params.get('end_date'));
+      bUrl.searchParams.set('page_size', '1000');
+      const extRes = await fetch(bUrl.toString(), {headers: {'X-API-Key': key}});
+      const body = await extRes.text();
+      res.writeHead(extRes.status, {'Content-Type':'application/json; charset=utf-8'});
+      res.end(body);
+    } catch(err) { res.writeHead(502, {'Content-Type':'application/json'}); res.end(JSON.stringify({error:err.message})); }
     return;
   }
 

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MATA CHARTS</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#000;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:12px;-webkit-font-smoothing:antialiased}
+    body{padding-bottom:30px}
+
+    /* ── TOPBAR ── */
+    #topbar{display:flex;align-items:center;justify-content:space-between;background:#000;border-bottom:1px solid #FF6B00;padding:0 16px;height:32px;position:sticky;top:0;z-index:200}
+    .brand{font-size:13px;font-weight:800;color:#FF6B00;letter-spacing:3px}
+    .nav-links{display:flex;gap:0}
+    .nav-links a{color:#666;text-decoration:none;font-size:9px;letter-spacing:1px;padding:0 12px;border-right:1px solid #1a1a1a;line-height:32px;transition:color .1s}
+    .nav-links a:first-child{border-left:1px solid #1a1a1a}
+    .nav-links a:hover,.nav-links a.active{color:#FF6B00;background:#0d0800}
+    #clock{color:#FF6B00;font-weight:700;font-size:11px}
+
+    /* ── FILTERBAR ── */
+    #filterbar{display:flex;align-items:flex-end;gap:12px;padding:8px 16px;border-bottom:1px solid #1a1a1a;flex-wrap:wrap;background:#030303;position:sticky;top:32px;z-index:100}
+    .fg{display:flex;flex-direction:column;gap:3px}
+    .fg label{font-size:7px;color:#666;letter-spacing:1.5px;text-transform:uppercase}
+    select{background:#0a0a0a;color:#bbb;border:1px solid #2a2a2a;padding:5px 9px;font-family:inherit;font-size:11px;outline:none;cursor:pointer}
+    select:focus{border-color:#FF6B00;color:#eee}
+    #metaBar{font-size:9px;color:#555;letter-spacing:1px;margin-left:auto;align-self:center}
+    #metaBar span{color:#FF6B00}
+    #modeTag{font-size:8px;padding:2px 8px;border:1px solid #FF6B0066;color:#FF6B00;letter-spacing:1px;background:#FF6B0018;display:none}
+
+    /* ── NO DATA ── */
+    #noData{display:none;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;text-align:center}
+    #noData .nd-title{font-size:13px;font-weight:800;color:#555;letter-spacing:3px;text-transform:uppercase}
+    #noData .nd-sub{font-size:10px;color:#444;max-width:400px;line-height:1.8}
+    #noData a{color:#FF6B00;text-decoration:none;font-size:10px;letter-spacing:1px;border:1px solid #FF6B00;padding:6px 20px}
+    #noData a:hover{background:#0d0800}
+
+    /* ── KPI ROW ── */
+    #kpiRow{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#1a1a1a;border-bottom:2px solid #1a1a1a}
+    .kpi{background:#050505;padding:16px 20px}
+    .kpi-lbl{font-size:7px;color:#666;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
+    .kpi-val{font-size:24px;font-weight:800;color:#FF6B00;letter-spacing:-0.5px}
+    .kpi-val.pos{color:#22C55E}
+    .kpi-val.neg{color:#EF4444}
+    .kpi-sub{font-size:9px;color:#555;margin-top:5px}
+
+    /* ── CHARTS GRID ── */
+    #chartsArea{padding:16px;display:flex;flex-direction:column;gap:16px}
+    .panel{border:1px solid #1a1a1a;background:#030303;padding:16px 18px}
+    .panel-title{font-size:8px;font-weight:800;color:#FF6B00;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #111}
+    .panel-grid{display:grid;gap:16px}
+    .panel-grid.col2{grid-template-columns:1fr 1fr}
+    .panel-grid.col3{grid-template-columns:1fr 1fr 1fr}
+    canvas{display:block;width:100%!important}
+
+    /* ── BOTTOM BAR ── */
+    #bottombar{position:fixed;bottom:0;left:0;right:0;height:30px;background:#000;border-top:1px solid #1a1a1a;display:flex;align-items:center;padding:0 16px;gap:0}
+    .fkey{display:flex;align-items:center;gap:5px;padding:0 14px;border-right:1px solid #1a1a1a;height:100%;font-size:9px;color:#666;letter-spacing:.5px}
+    .fkey kbd{background:#111;border:1px solid #333;border-radius:2px;padding:1px 5px;font-family:inherit;font-size:9px;color:#999;font-weight:700}
+    #bStatus{margin-left:auto;font-size:9px;color:#555;letter-spacing:1px}
+  </style>
+</head>
+<body>
+
+<div id="topbar">
+  <span class="brand">MATA  CHARTS</span>
+  <div class="nav-links">
+    <a href="/landing.html">TERMINAL</a>
+    <a href="/">ANALYSIS</a>
+    <a href="/reconciliation_matix_mata_bictorys.html">RECONCILIATION</a>
+    <a href="/auth/logout">LOGOUT</a>
+  </div>
+  <span id="clock"></span>
+</div>
+
+<div id="filterbar">
+  <div class="fg">
+    <label>Catégorie</label>
+    <select id="fCat"><option value="">Toutes catégories</option></select>
+  </div>
+  <div class="fg">
+    <label>Point de vente</label>
+    <select id="fPdv"><option value="">Tous PDV</option></select>
+  </div>
+  <div id="modeTag"></div>
+  <div id="metaBar">Données : <span id="metaPeriode">–</span></div>
+</div>
+
+<div id="noData">
+  <div class="nd-title">Aucune donnée</div>
+  <div class="nd-sub">Lancez une analyse depuis Mata Analysis, puis cliquez sur le bouton <strong style="color:#FF6B00">■ Charts</strong> pour visualiser les résultats.</div>
+  <a href="/">← Retour à l'analyse</a>
+</div>
+
+<div id="kpiRow">
+  <div class="kpi"><div class="kpi-lbl">CA Total</div><div class="kpi-val" id="kCA">–</div><div class="kpi-sub" id="kCASub"></div></div>
+  <div class="kpi"><div class="kpi-lbl">Coût achat</div><div class="kpi-val" id="kCost">–</div><div class="kpi-sub" id="kCostSub"></div></div>
+  <div class="kpi"><div class="kpi-lbl">Marge brute</div><div class="kpi-val" id="kMrg">–</div><div class="kpi-sub" id="kMrgSub"></div></div>
+  <div class="kpi"><div class="kpi-lbl">Charges fixes</div><div class="kpi-val" id="kChg" style="color:#888">–</div><div class="kpi-sub" id="kChgSub"></div></div>
+  <div class="kpi"><div class="kpi-lbl">Marge nette</div><div class="kpi-val" id="kMrgNet">–</div><div class="kpi-sub" id="kMrgNetSub"></div></div>
+</div>
+
+<div id="chartsArea">
+  <div class="panel">
+    <div class="panel-title">CA &amp; Coût par jour</div>
+    <canvas id="cDay" height="90"></canvas>
+  </div>
+  <div class="panel-grid col2">
+    <div class="panel">
+      <div class="panel-title">Marge brute par jour</div>
+      <canvas id="cMrg" height="140"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">CA par catégorie</div>
+      <canvas id="cCat" height="140"></canvas>
+    </div>
+  </div>
+  <div class="panel-grid col2">
+    <div class="panel">
+      <div class="panel-title">CA par point de vente</div>
+      <canvas id="cPdv" height="160"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Marge par catégorie</div>
+      <canvas id="cCatMrg" height="160"></canvas>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Top produits — CA</div>
+    <canvas id="cProd" height="80"></canvas>
+  </div>
+</div>
+
+<div id="bottombar">
+  <div class="fkey"><kbd>F1</kbd> Analysis</div>
+  <div class="fkey"><kbd>F2</kbd> Réconciliation</div>
+  <div class="fkey"><kbd>F3</kbd> Terminal</div>
+  <div id="bStatus">MATA GROUP SA</div>
+</div>
+
+<script>
+// ── CLOCK ────────────────────────────────────────────────────────────────────
+(function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+  setTimeout(tick,1000);
+})();
+
+// ── KEYBOARD NAV ─────────────────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.key==='F1'){e.preventDefault();location.href='/';}
+  if(e.key==='F2'){e.preventDefault();location.href='/reconciliation_matix_mata_bictorys.html';}
+  if(e.key==='F3'){e.preventDefault();location.href='/landing.html';}
+});
+
+// ── CHART.JS DEFAULTS ────────────────────────────────────────────────────────
+Chart.defaults.color='#666';
+Chart.defaults.borderColor='#141414';
+Chart.defaults.font.family="'JetBrains Mono',monospace";
+Chart.defaults.font.size=9;
+const TICK={color:'#666'};
+const GRID={color:'#111'};
+const TIP={
+  backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,
+  titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
+  callbacks:{label:ctx=>ctx.dataset.label+': '+fmtK(Math.round(ctx.parsed.y??ctx.parsed.x))+'F'}
+};
+const TIP_H={...TIP,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtK(Math.round(ctx.parsed.x))+'F'}};
+const LEG={display:true,labels:{color:'#777',boxWidth:8,padding:14,font:{size:9}}};
+
+// ── PALETTE ──────────────────────────────────────────────────────────────────
+const CAT_COL={
+  'Bovin':'#FF6B00','Veau':'#FF8C42','Volaille':'#FFD700',
+  'Ovin':'#00C853','Poisson':'#00B4D8','Caprin':'#A855F7',
+  'Abats':'#f472b6','Autres':'#444',
+};
+function catCol(c){return CAT_COL[c]||'#888';}
+const PDV_PAL=['#FF6B00','#FFD700','#00C853','#00B4D8','#A855F7','#FF8C42','#f472b6','#34d399','#60a5fa'];
+
+// ── FORMAT ───────────────────────────────────────────────────────────────────
+function fmtK(v){
+  if(v===undefined||v===null||isNaN(v))return'–';
+  const av=Math.abs(v);
+  const s=v<0?'-':'';
+  if(av>=1e9)return s+(av/1e9).toFixed(1)+'G';
+  if(av>=1e6)return s+(av/1e6).toFixed(1)+'M';
+  if(av>=1e3)return s+(av/1e3).toFixed(0)+'K';
+  return s+String(Math.round(av));
+}
+function fmtP(v){return(v*100).toFixed(1)+'%';}
+
+// ── CHARTS REGISTRY ──────────────────────────────────────────────────────────
+const CH={};
+function dc(id){if(CH[id]){CH[id].destroy();delete CH[id];}}
+
+// ── LOAD DATA ────────────────────────────────────────────────────────────────
+let RAW=null; // full payload from localStorage
+let VIEW=null; // filtered view
+
+function loadData(){
+  try{
+    const s=localStorage.getItem('mata_charts_data');
+    if(!s)return null;
+    return JSON.parse(s);
+  }catch(e){return null;}
+}
+
+// ── FILTER ───────────────────────────────────────────────────────────────────
+function applyFilter(){
+  const catF=document.getElementById('fCat').value;
+  const pdvF=document.getElementById('fPdv').value;
+  if(!RAW)return;
+
+  // byDate: filter categories if needed
+  const byDate={};
+  Object.keys(RAW.byDate).sort().forEach(dk=>{
+    const d=RAW.byDate[dk];
+    let ca=0,cost=0;
+    const byCat={};
+    Object.keys(d.byCat).forEach(cat=>{
+      if(catF&&cat!==catF)return;
+      byCat[cat]={ca:d.byCat[cat].ca,cost:d.byCat[cat].cost};
+      ca+=d.byCat[cat].ca;
+      cost+=d.byCat[cat].cost;
+    });
+    byDate[dk]={ca,cost,byCat};
+  });
+
+  // byCat
+  const byCat={};
+  Object.keys(RAW.byCat).forEach(cat=>{
+    if(catF&&cat!==catF)return;
+    byCat[cat]={...RAW.byCat[cat]};
+  });
+
+  // byPdv
+  const byPdv={};
+  Object.keys(RAW.byPdv).forEach(pdv=>{
+    if(pdvF&&pdv!==pdvF)return;
+    byPdv[pdv]={...RAW.byPdv[pdv]};
+  });
+
+  // byProd
+  const byProd={};
+  Object.keys(RAW.byProd).forEach(p=>{
+    const pp=RAW.byProd[p];
+    if(catF&&pp.cat!==catF)return;
+    byProd[p]={...pp};
+  });
+
+  const totCA=Object.values(byDate).reduce((s,d)=>s+d.ca,0);
+  const totCost=Object.values(byDate).reduce((s,d)=>s+d.cost,0);
+
+  VIEW={byDate,byCat,byPdv,byProd,totals:{ca:totCA,cost:totCost,margin:totCA-totCost}};
+  render();
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function render(){
+  if(!VIEW)return;
+  const {byDate,byCat,byPdv,byProd,totals}=VIEW;
+  const {ca,cost,margin}=totals;
+  const dates=Object.keys(byDate).sort();
+
+  // ── KPIs — use exact Analysis totals ────────────────────────────────────────
+  const T=RAW.totals;
+  document.getElementById('kCA').textContent=fmtK(T.ca)+' F';
+  document.getElementById('kCASub').textContent=dates.length+' jours';
+  document.getElementById('kCost').textContent=fmtK(T.cost)+' F';
+  document.getElementById('kCostSub').textContent=T.ca>0?fmtP(T.cost/T.ca)+' du CA':'–';
+  const mbEl=document.getElementById('kMrg');
+  mbEl.textContent=fmtK(T.marginBrute)+' F';
+  mbEl.className='kpi-val'+(T.marginBrute>=0?' pos':' neg');
+  document.getElementById('kMrgSub').textContent=T.ca>0?fmtP(T.marginBrute/T.ca)+' du CA':'–';
+  document.getElementById('kChg').textContent=fmtK(T.chg)+' F';
+  document.getElementById('kChgSub').textContent=T.ca>0?fmtP(T.chg/T.ca)+' du CA':'–';
+  const mnEl=document.getElementById('kMrgNet');
+  mnEl.textContent=fmtK(T.marginNet)+' F';
+  mnEl.className='kpi-val'+(T.marginNet>=0?' pos':' neg');
+  document.getElementById('kMrgNetSub').textContent=T.ca>0?fmtP(T.marginNet/T.ca)+' du CA':'–';
+
+  // ── CHART 1: CA & COÛT PAR JOUR ─────────────────────────────────────────────
+  dc('cDay');
+  const allCats=Object.keys(byCat).sort();
+  const caDayDs=allCats.map(cat=>({
+    label:cat,type:'bar',backgroundColor:catCol(cat)+'cc',
+    stack:'ca',data:dates.map(dk=>(byDate[dk].byCat[cat]?.ca||0)),
+    borderWidth:0,
+  }));
+  caDayDs.push({
+    label:'Coût',type:'line',borderColor:'#EF4444',backgroundColor:'transparent',
+    data:dates.map(dk=>byDate[dk].cost),borderWidth:1.5,pointRadius:0,tension:0.2,
+    yAxisID:'y',
+  });
+  CH['cDay']=new Chart(document.getElementById('cDay'),{
+    data:{labels:dates,datasets:caDayDs},
+    options:{
+      responsive:true,animation:false,
+      plugins:{legend:LEG,tooltip:{...TIP,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtK(Math.round(ctx.parsed.y))+'F'}}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
+        y:{grid:GRID,ticks:{...TICK,callback:v=>fmtK(v)}},
+      }
+    }
+  });
+
+  // ── CHART 2: MARGE PAR JOUR ─────────────────────────────────────────────────
+  dc('cMrg');
+  const mrgData=dates.map(dk=>byDate[dk].ca-byDate[dk].cost);
+  CH['cMrg']=new Chart(document.getElementById('cMrg'),{
+    type:'bar',
+    data:{labels:dates,datasets:[{
+      label:'Marge brute',
+      data:mrgData,
+      backgroundColor:mrgData.map(v=>v>=0?'#22C55E44':'#EF444444'),
+      borderColor:mrgData.map(v=>v>=0?'#22C55E':'#EF4444'),
+      borderWidth:1,
+    }]},
+    options:{
+      responsive:true,animation:false,
+      plugins:{legend:{display:false},tooltip:{...TIP}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
+        y:{grid:GRID,ticks:{...TICK,callback:v=>fmtK(v)}},
+      }
+    }
+  });
+
+  // ── CHART 3: CA PAR CATÉGORIE (doughnut) ────────────────────────────────────
+  dc('cCat');
+  const catLabels=Object.keys(byCat).sort((a,b)=>byCat[b].ca-byCat[a].ca);
+  CH['cCat']=new Chart(document.getElementById('cCat'),{
+    type:'doughnut',
+    data:{labels:catLabels,datasets:[{
+      data:catLabels.map(c=>byCat[c].ca||0),
+      backgroundColor:catLabels.map(c=>catCol(c)+'cc'),
+      borderColor:'#000',borderWidth:2,
+    }]},
+    options:{
+      responsive:true,animation:false,
+      plugins:{
+        legend:{position:'right',labels:{color:'#777',boxWidth:8,padding:12,font:{size:9}}},
+        tooltip:{backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
+          callbacks:{label:ctx=>ctx.label+': '+fmtK(Math.round(ctx.parsed))+'F ('+fmtP(ctx.parsed/(ca||1))+')'}}
+      }
+    }
+  });
+
+  // ── CHART 4: CA PAR PDV ──────────────────────────────────────────────────────
+  dc('cPdv');
+  const pdvLabels=Object.keys(byPdv).sort((a,b)=>byPdv[b].ca-byPdv[a].ca);
+  CH['cPdv']=new Chart(document.getElementById('cPdv'),{
+    type:'bar',
+    data:{labels:pdvLabels,datasets:[{
+      label:'CA',data:pdvLabels.map(p=>byPdv[p].ca||0),
+      backgroundColor:pdvLabels.map((_,i)=>PDV_PAL[i%PDV_PAL.length]+'99'),
+      borderColor:pdvLabels.map((_,i)=>PDV_PAL[i%PDV_PAL.length]),
+      borderWidth:1,
+    }]},
+    options:{
+      indexAxis:'y',responsive:true,animation:false,
+      plugins:{legend:{display:false},tooltip:{...TIP_H}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,callback:v=>fmtK(v)}},
+        y:{grid:{color:'#0a0a0a'},ticks:{...TICK}},
+      }
+    }
+  });
+
+  // ── CHART 5: MARGE PAR CATÉGORIE ────────────────────────────────────────────
+  dc('cCatMrg');
+  const catMrgLabels=Object.keys(byCat).sort((a,b)=>(byCat[b].ca-byCat[b].cost)-(byCat[a].ca-byCat[a].cost));
+  CH['cCatMrg']=new Chart(document.getElementById('cCatMrg'),{
+    type:'bar',
+    data:{labels:catMrgLabels,datasets:[
+      {label:'CA',data:catMrgLabels.map(c=>byCat[c].ca||0),backgroundColor:catMrgLabels.map(c=>catCol(c)+'55'),borderColor:catMrgLabels.map(c=>catCol(c)),borderWidth:1},
+      {label:'Coût',data:catMrgLabels.map(c=>byCat[c].cost||0),backgroundColor:'#EF444422',borderColor:'#EF4444',borderWidth:1},
+    ]},
+    options:{
+      indexAxis:'y',responsive:true,animation:false,
+      plugins:{legend:LEG,tooltip:{...TIP_H}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,callback:v=>fmtK(v)}},
+        y:{grid:{color:'#0a0a0a'},ticks:{...TICK}},
+      }
+    }
+  });
+
+  // ── CHART 6: TOP PRODUITS ────────────────────────────────────────────────────
+  dc('cProd');
+  const prodEntries=Object.entries(byProd).sort((a,b)=>b[1].ca-a[1].ca).slice(0,20);
+  CH['cProd']=new Chart(document.getElementById('cProd'),{
+    type:'bar',
+    data:{labels:prodEntries.map(e=>e[0]),datasets:[{
+      label:'CA',data:prodEntries.map(e=>e[1].ca||0),
+      backgroundColor:prodEntries.map(e=>catCol(e[1].cat)+'99'),
+      borderColor:prodEntries.map(e=>catCol(e[1].cat)),
+      borderWidth:1,
+    }]},
+    options:{
+      indexAxis:'y',responsive:true,animation:false,
+      plugins:{legend:{display:false},tooltip:{...TIP_H}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,callback:v=>fmtK(v)}},
+        y:{grid:{color:'#0a0a0a'},ticks:{...TICK,font:{size:9}}},
+      }
+    }
+  });
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+(function init(){
+  RAW=loadData();
+  const noDataEl=document.getElementById('noData');
+  const kpiEl=document.getElementById('kpiRow');
+  const chartsEl=document.getElementById('chartsArea');
+
+  if(!RAW){
+    noDataEl.style.display='flex';
+    kpiEl.style.display='none';
+    chartsEl.style.display='none';
+    return;
+  }
+
+  noDataEl.style.display='none';
+  kpiEl.style.display='grid';
+  chartsEl.style.display='flex';
+
+  // Populate filters
+  const cats=[...new Set(Object.keys(RAW.byCat))].sort();
+  const pdvs=[...new Set(Object.keys(RAW.byPdv))].sort();
+  const catSel=document.getElementById('fCat');
+  const pdvSel=document.getElementById('fPdv');
+  cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;catSel.appendChild(o);});
+  pdvs.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;pdvSel.appendChild(o);});
+  catSel.addEventListener('change',applyFilter);
+  pdvSel.addEventListener('change',applyFilter);
+
+  // Metadata
+  document.getElementById('metaPeriode').textContent=RAW.periode?.debut+' → '+RAW.periode?.fin;
+  if(RAW.modes?.abats||RAW.modes?.prix_revient){
+    const t=document.getElementById('modeTag');
+    t.textContent=RAW.modes.prix_revient?'MODE PRIX DE REVIENT':'MODE ABATS INCLUS';
+    t.style.display='block';
+  }
+
+  // Bottom bar status
+  document.getElementById('bStatus').innerHTML=
+    '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22C55E;margin-right:6px;vertical-align:middle"></span>DATA LOADED — '+
+    new Date(RAW.exportedAt).toLocaleString('fr-FR');
+
+  applyFilter();
+})();
+</script>
+</body>
+</html>
