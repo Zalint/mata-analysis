@@ -748,6 +748,12 @@ function renderDrillDown(date, result) {
             <td style="padding:4px 8px;color:${C.muted}">${r.ref}</td>
           </tr>`).join('')}
           </tbody>
+          <tfoot><tr style="border-top:1px solid ${C.border}">
+            <td colspan="3" style="padding:5px 8px;color:${C.muted};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Total</td>
+            <td style="padding:5px 8px;color:${C.accent};font-weight:800;text-align:right;font-size:11px">${new Intl.NumberFormat('fr-FR').format(Math.round(cash.reduce((s,r)=>s+r.amount,0)))} F</td>
+            <td style="padding:5px 8px;color:${C.muted};font-weight:700;text-align:right">${new Intl.NumberFormat('fr-FR').format(Math.round(cash.reduce((s,r)=>s+r.fees,0)))} F</td>
+            <td></td>
+          </tr></tfoot>
         </table>`;
     })() },
     { title:"🔄 Virements", color:"#34D399", custom: ((result.virDetail||{})[date]||[]).length === 0 ? null : `
@@ -774,6 +780,11 @@ function renderDrillDown(date, result) {
             </tr>`;
           }).join("")}
         </tbody>
+        <tfoot><tr style="border-top:1px solid ${C.border}">
+          <td colspan="4" style="padding:5px 8px;color:${C.muted};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Total</td>
+          <td style="padding:5px 8px;color:#34D399;font-weight:800;text-align:right;font-size:11px">${fmt(((result.virDetail||{})[date]||[]).reduce((s,v)=>s+v.val,0))}</td>
+          <td></td>
+        </tr></tfoot>
       </table>` },
     { title:"📋 Créances accordées", color:C.yellow, custom: creds.length === 0 ? null : `
       <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
@@ -801,6 +812,11 @@ function renderDrillDown(date, result) {
             </tr>`;
           }).join("")}
         </tbody>
+        <tfoot><tr style="border-top:1px solid ${C.border}">
+          <td colspan="5" style="padding:5px 8px;color:${C.muted};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Total</td>
+          <td style="padding:5px 8px;color:${C.yellow};font-weight:800;text-align:right;font-size:11px">${fmt(creds.reduce((s,r)=>s+r.montant,0))}</td>
+          <td></td>
+        </tr></tfoot>
       </table>` },
     { title:"↩ Remboursements", color:C.green, custom: rembs.length === 0 ? null : `
       <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
@@ -828,6 +844,11 @@ function renderDrillDown(date, result) {
             </tr>`;
           }).join("")}
         </tbody>
+        <tfoot><tr style="border-top:1px solid ${C.border}">
+          <td colspan="5" style="padding:5px 8px;color:${C.muted};font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px">Total</td>
+          <td style="padding:5px 8px;color:${C.green};font-weight:800;text-align:right;font-size:11px">${fmt(rembs.reduce((s,r)=>s+r.montant,0))}</td>
+          <td></td>
+        </tr></tfoot>
       </table>` },
   ];
 
