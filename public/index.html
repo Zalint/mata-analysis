@@ -202,7 +202,7 @@ details.paramWrap[open]>summary span.arr{transform:rotate(90deg)}
     <img src="/bull.svg" class="mataBull" alt="">
     <img src="/mata_logo.svg" class="mataTarget" alt="Mata">
   </div>
-  <div id="mataLoaderStep"><span class="mataLoaderDots"></span></div>
+  <div id="mataLoaderStep"></div>
 </div>
 <div id="UZ">
   <h1>Mata &middot; <em>Analysis</em></h1>
@@ -708,6 +708,7 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
     var bk2=document.getElementById('backToUpload');if(bk2)bk2.style.display='inline';
     var br2=document.getElementById('btnRefresh');if(br2)br2.style.display='inline';
     buildTabs();buildCatTabs();buildFpBar();render();
+    hideMataLoader();
   }
   /* Always show banner (lists all cached ranges) */
   showCacheBanner();
@@ -1370,6 +1371,7 @@ async function launchApiAnalysis(forceRefresh){
       var saved0=new Date(hit.savedAt);
       var mins0=Math.round((Date.now()-saved0.getTime())/60000);
       var ago0=mins0<60?(mins0+'min'):(mins0<1440?Math.round(mins0/60)+'h':Math.floor(mins0/1440)+'j');
+      hideMataLoader();
       apStatus('\uD83D\uDCBE Cache charg\u00e9 ('+nPdvs0+' PdV, '+nDays0+' jours — sauvegard\u00e9 il y a '+ago0+')','ok');
       return;
     }
