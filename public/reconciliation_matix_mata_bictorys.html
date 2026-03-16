@@ -60,6 +60,17 @@
     }
     .dropzone:hover, .dropzone.drag { border-color:var(--accent); background:#f9731608; }
     .dropzone.loaded { border-color:var(--g); background:#22c55e08; }
+    /* ── Reco Chat UI ── */
+    .recoChatBtn{position:fixed;bottom:24px;right:24px;width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px #0008;font-size:20px;z-index:400;border:none;transition:transform .2s}
+    .recoChatBtn:hover{transform:scale(1.1)}
+    .recoChatPanel{position:fixed;bottom:84px;right:24px;width:420px;max-height:560px;background:var(--s1);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 8px 32px #000c;z-index:400;display:none;flex-direction:column;font-family:'Instrument Sans',sans-serif;overflow:hidden}
+    .recoChatPanel.open{display:flex}
+    .recoChatHd{padding:10px 14px;background:var(--s2);border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+    .recoChatMsgs{flex:1;overflow-y:auto;padding:10px 14px;min-height:220px;max-height:420px}
+    .recoChatFt{padding:8px 10px;border-top:1px solid var(--bd);display:flex;gap:6px;flex-shrink:0}
+    .recoChatFt input{flex:1;background:var(--s2);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:6px;font-size:10px;font-family:'Instrument Sans',sans-serif;outline:none}
+    .recoChatFt input:focus{border-color:var(--accent)}
+    .recoChatFt button{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:700}
   </style>
 </head>
 <body>
@@ -352,11 +363,11 @@ function reconcile() {
     if (type === "credit") {
       const credId = makeItemId(row.__date, row["client"]||"", montant, "cred");
       if (!state.credExcludes[credId]) creancesMap[row.__date] = (creancesMap[row.__date]||0) + montant;
-      creancesDetail.push({ date:row.__date, portfolio, client:row["client"], montant, type:"credit", id:credId });
+      creancesDetail.push({ date:row.__date, portfolio, client:row["client"], montant, type:"credit", id:credId, date_operation:row["date_operation"]||"", created_at:row["created_at"]||"", cree_par:row["cree_par"]||"" });
     } else if (type === "debit") {
       const rembId = makeItemId(row.__date, row["client"]||"", montant, "remb");
       if (!state.rembExcludes[rembId]) remboursMap[row.__date] = (remboursMap[row.__date]||0) + montant;
-      creancesDetail.push({ date:row.__date, portfolio, client:row["client"], montant, type:"debit", id:rembId });
+      creancesDetail.push({ date:row.__date, portfolio, client:row["client"], montant, type:"debit", id:rembId, date_operation:row["date_operation"]||"", created_at:row["created_at"]||"", cree_par:row["cree_par"]||"" });
     }
   }
 
@@ -431,7 +442,16 @@ function reconcile() {
     const amount = parseFloat(row["amount"]||row["Amount"]||0);
     if (amount <= 0) continue;
     if (!cashDetail[row.__date]) cashDetail[row.__date] = [];
-    cashDetail[row.__date].push({ desc: row["created_at"]||"", amount });
+    const ts = row["timestamp"] || row["created_at"] || "";
+    const heure = ts ? String(ts).split(" ")[1]?.slice(0,8) || ts : "";
+    cashDetail[row.__date].push({
+      heure,
+      psp: row["pspName"] || "",
+      phone: row["paymentMeans"] || "",
+      amount,
+      fees: parseFloat(row["merchantFees"] || 0),
+      ref: row["paymentReference"] || row["orderId"] || ""
+    });
   }
   const virDetail = {};
   for (const row of virData) {
@@ -686,7 +706,7 @@ function renderDrillDown(date, result) {
           </tr>`).join("")}
         </tbody>
       </table>` }])
-    ,{ title:"💳 Cash Bictorys",        color:C.accent, rows:cash.map(r=>({Heure:r.desc, Montant:r.amount})),                                  cols:["Heure","Montant"] },
+    ,{ title:"💳 Cash Bictorys", color:C.accent, rows:cash.map(r=>({ "Heure":r.heure, "PSP":r.psp.replace(/_/g,' '), "Téléphone":r.phone, "Montant":r.amount, "Frais":r.fees, "Réf":r.ref })), cols:["Heure","PSP","Téléphone","Montant","Frais","Réf"] },
     { title:"🔄 Virements", color:"#34D399", custom: ((result.virDetail||{})[date]||[]).length === 0 ? null : `
       <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
         <thead><tr>
@@ -713,14 +733,19 @@ function renderDrillDown(date, result) {
     { title:"📋 Créances accordées", color:C.yellow, custom: creds.length === 0 ? null : `
       <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
         <thead><tr>
-          ${["Client","Portfolio","Montant",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
+          ${["Client","Portfolio","Date op.","Saisi le","Par","Montant",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
         </tr></thead>
         <tbody>
           ${creds.map((r,i)=>{
             const excl = !!state.credExcludes[r.id];
+            const dateOp = r.date_operation ? String(r.date_operation).split("T")[0] : "";
+            const ts = r.created_at ? String(r.created_at).replace("T"," ").slice(0,16) : "";
             return `<tr style="background:${i%2===0?C.bg:C.surface};opacity:${excl?0.4:1}">
               <td style="padding:5px 8px;color:${excl?C.muted:C.text};text-decoration:${excl?'line-through':'none'}">${r.client}</td>
               <td style="padding:5px 8px;color:${C.muted}">${r.portfolio.replace("CREANCE_","")}</td>
+              <td style="padding:5px 8px;color:${C.muted};font-size:9px">${dateOp}</td>
+              <td style="padding:5px 8px;color:${C.muted};font-size:9px">${ts}</td>
+              <td style="padding:5px 8px;color:${C.muted};font-size:9px">${r.cree_par}</td>
               <td style="padding:5px 8px;color:${C.yellow};font-weight:700;text-align:right">${fmt(r.montant)}</td>
               <td style="padding:5px 8px;text-align:center">
                 <button onclick="toggleCredExclude('${r.id}')"
@@ -735,14 +760,19 @@ function renderDrillDown(date, result) {
     { title:"↩ Remboursements", color:C.green, custom: rembs.length === 0 ? null : `
       <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
         <thead><tr>
-          ${["Client","Portfolio","Montant",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
+          ${["Client","Portfolio","Date op.","Saisi le","Par","Montant",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
         </tr></thead>
         <tbody>
           ${rembs.map((r,i)=>{
             const excl = !!state.rembExcludes[r.id];
+            const dateOp = r.date_operation ? String(r.date_operation).split("T")[0] : "";
+            const ts = r.created_at ? String(r.created_at).replace("T"," ").slice(0,16) : "";
             return `<tr style="background:${i%2===0?C.bg:C.surface};opacity:${excl?0.4:1}">
               <td style="padding:5px 8px;color:${excl?C.muted:C.text};text-decoration:${excl?'line-through':'none'}">${r.client}</td>
               <td style="padding:5px 8px;color:${C.muted}">${r.portfolio.replace("CREANCE_","")}</td>
+              <td style="padding:5px 8px;color:${C.muted};font-size:9px">${dateOp}</td>
+              <td style="padding:5px 8px;color:${C.muted};font-size:9px">${ts}</td>
+              <td style="padding:5px 8px;color:${C.muted};font-size:9px">${r.cree_par}</td>
               <td style="padding:5px 8px;color:${C.green};font-weight:700;text-align:right">${fmt(r.montant)}</td>
               <td style="padding:5px 8px;text-align:center">
                 <button onclick="toggleRembExclude('${r.id}')"
@@ -1503,6 +1533,259 @@ window.togglePreview = togglePreview;
 window.exportXLSX = exportXLSX;
 
 render();
+
+/*══════ AI CHAT — RÉCONCILIATION ══════*/
+var recoChatHistory=[];
+var recoChatOpen=false;
+
+const RECO_SYSTEM_PROMPT=`Tu es l'assistant analytique financier de Mata Group SA, une entreprise de distribution de viande au Sénégal (points de vente : O.Foire, Keur Massar, Mbao, Sacré Coeur, Abattage).
+
+Tu es spécialisé dans la RÉCONCILIATION DES ENCAISSEMENTS. Tu comprends parfaitement le modèle suivant :
+
+=== FORMULE DE RÉCONCILIATION ===
+Encaissement = B (Versements banque) + C (Cash Bictorys) + F (Virements) + D (Créances accordées) − E (Remboursements)
+Gap = A (Ventes) − Encaissement
+Gap cumulé = somme des gaps journaliers
+
+Interprétation du Gap :
+- Gap > 0 : ventes SUPÉRIEURES à l'encaissement → argent manquant, à investiguer
+- Gap < 0 : encaissement SUPÉRIEUR aux ventes → excédent (souvent un décalage de date ou un remboursement d'une créance antérieure)
+- Gap = 0 : parfaitement équilibré
+
+=== SOURCES DE DONNÉES ===
+A — Ventes : chiffre d'affaires journalier par point de vente (API ventes)
+B — Versements banque : relevé bancaire filtré par mots-clés (VERSEMENT, SENE...) avec gestion du décalage week-end (lundi = samedi J-2, autres jours = J-1 possible)
+C — Cash Bictorys : paiements mobiles via le terminal Bictorys, uniquement les transactions avec status="succeeded"
+D — Créances accordées : livraisons à crédit accordées aux clients (type_operation=credit dans l'API créances)
+E — Remboursements : remboursements de créances reçus (type_operation=debit dans l'API créances)
+F — Virements : virements inter-comptes ou de partenaires, peut remplacer les versements banque selon le mode actif
+
+=== LOGIQUE MÉTIER ===
+- Les versements peuvent avoir une date effective décalée par rapport à la date d'opération bancaire (gestion des jours ouvrés)
+- Certaines dates peuvent être exclues manuellement de la réconciliation
+- Le mode "Virements" (F) remplace les versements banque (B) quand il est actif
+- Les remboursements anciens (antérieurs à la période) sont tracés séparément car ils n'ont pas de créance correspondante dans la période
+- Les soldes clients représentent : accordées − remboursements = créance ouverte restante
+
+=== INSTRUCTIONS ===
+- Réponds TOUJOURS en français
+- Si les données sont déjà dans le contexte ci-dessous, utilise-les directement sans appeler les APIs
+- Utilise les outils uniquement pour des plages de dates DIFFÉRENTES ou des données absentes du contexte
+- Format : **gras** pour les montants clés et conclusions importantes
+- Tu es en LECTURE SEULE — tu ne peux pas modifier les données, exclure des dates ou changer la configuration
+- Si on te pose une question hors périmètre (produits, stocks, marges), indique que tu es spécialisé réconciliation`;
+
+const RECO_TOOLS=[
+  {name:'get_ventes',
+   description:'Récupère les ventes journalières par point de vente pour une période.',
+   input_schema:{type:'object',properties:{
+     dateDebut:{type:'string',description:'Date début YYYY-MM-DD'},
+     dateFin:{type:'string',description:'Date fin YYYY-MM-DD'}
+   },required:['dateDebut','dateFin']}},
+  {name:'get_virements',
+   description:'Récupère les virements inter-comptes ou partenaires pour une période (source F de la réconciliation).',
+   input_schema:{type:'object',properties:{
+     date_debut:{type:'string',description:'Date début YYYY-MM-DD'},
+     date_fin:{type:'string',description:'Date fin YYYY-MM-DD'}
+   },required:['date_debut','date_fin']}},
+  {name:'get_cash_bictorys',
+   description:'Récupère les paiements cash via le terminal Bictorys (source C). Uniquement les transactions succeeded.',
+   input_schema:{type:'object',properties:{
+     start_date:{type:'string',description:'Date début YYYY-MM-DD'},
+     end_date:{type:'string',description:'Date fin YYYY-MM-DD'}
+   },required:['start_date','end_date']}},
+  {name:'get_creances',
+   description:'Récupère les opérations de créances clients : accordées (D) et remboursements (E).',
+   input_schema:{type:'object',properties:{
+     date_debut:{type:'string',description:'Date début YYYY-MM-DD'},
+     date_fin:{type:'string',description:'Date fin YYYY-MM-DD'}
+   },required:['date_debut','date_fin']}},
+  {name:'get_reconciliation_stock',
+   description:'Récupère la réconciliation stock vs ventes par PdV et produit (écarts de stock, quantités théoriques vs réelles).',
+   input_schema:{type:'object',properties:{
+     startDate:{type:'string',description:'Date début DD/MM/YYYY'},
+     endDate:{type:'string',description:'Date fin DD/MM/YYYY'}
+   },required:['startDate','endDate']}}
+];
+
+async function recoExecuteTool(name,inp){
+  try{
+    var url;
+    if(name==='get_ventes'){
+      url='/api/external/ventes?dateDebut='+inp.dateDebut+'&dateFin='+inp.dateFin;
+    } else if(name==='get_virements'){
+      url='/api/proxy/virements?date_debut='+inp.date_debut+'&date_fin='+inp.date_fin;
+    } else if(name==='get_cash_bictorys'){
+      var s=inp.start_date+'T00:00:00+00:00';
+      var eD=new Date(inp.end_date+'T00:00:00Z');
+      eD.setUTCDate(eD.getUTCDate()+1);
+      var e=eD.toISOString().replace('.000Z','+00:00');
+      url='/api/proxy/bictorys?start_date='+encodeURIComponent(s)+'&end_date='+encodeURIComponent(e);
+    } else if(name==='get_creances'){
+      url='/api/proxy/creances?date_debut='+inp.date_debut+'&date_fin='+inp.date_fin;
+    } else if(name==='get_reconciliation_stock'){
+      url='/api/external/reconciliation?startDate='+encodeURIComponent(inp.startDate)+'&endDate='+encodeURIComponent(inp.endDate);
+    } else {
+      return JSON.stringify({error:'Outil inconnu: '+name});
+    }
+    var r=await fetch(url);
+    var d=await r.json();
+    var str=JSON.stringify(d);
+    if(str.length>8000)str=str.slice(0,8000)+'...[tronqué]';
+    return str;
+  }catch(e){return JSON.stringify({error:e.message});}
+}
+
+function buildRecoContext(){
+  var s=state.apiDates.start, e=state.apiDates.end;
+  var ctx='=== RÉCONCILIATION MATA — DONNÉES CHARGÉES ===\n';
+  ctx+='Période analysée: '+s+' → '+e+'\n';
+  var srcList=Object.entries(state.apiStatus).map(function(kv){return kv[1]==='ok'?'['+kv[0]+' ✓]':kv[1]?'['+kv[0]+' ✗]':'';}).filter(Boolean).join(' ');
+  if(srcList)ctx+='Sources API: '+srcList+'\n';
+  var hasVir=(state.rawData.virements||[]).length>0;
+  ctx+='Mode encaissement: '+(hasVir&&state.virMode==='jour_j'?'Virements (F) actifs':'Versements banque (B)')+'\n';
+  if(state.excludedDates&&state.excludedDates.size>0)ctx+='Dates exclues: '+[...state.excludedDates].sort().join(', ')+'\n';
+  if(!state.result){
+    ctx+='\nAucune donnée calculée. Utilise les outils avec la période ci-dessus pour répondre.\n';
+    return ctx;
+  }
+  var rows=state.result.rows||[];
+  var T=totals(rows);
+  ctx+='\n--- TABLEAU JOURNALIER ('+rows.length+' jours) ---\n';
+  var display=rows.length>60?rows.slice(0,60):rows;
+  for(var i=0;i<display.length;i++){
+    var r=display[i];
+    ctx+=r.date+' A='+Math.round(r.ventes)+' B='+Math.round(r.versements)+' C='+Math.round(r.cash)+' F='+Math.round(r.virements||0)+' D='+Math.round(r.creances)+' E='+Math.round(r.remboursements)+' Enc='+Math.round(r.encaissement)+' Gap='+Math.round(r.gap)+' CumGap='+Math.round(r.cumGap)+'\n';
+  }
+  if(rows.length>60)ctx+='...('+( rows.length-60)+' lignes supplémentaires tronquées)\n';
+  ctx+='\n--- TOTAUX ---\n';
+  ctx+='Ventes (A):              '+Math.round(T.ventes)+' F\n';
+  ctx+='Versements banque (B):   '+Math.round(T.versements)+' F\n';
+  ctx+='Cash Bictorys (C):       '+Math.round(T.cash)+' F\n';
+  ctx+='Virements (F):           '+Math.round(T.virements||0)+' F\n';
+  ctx+='Créances accordées (D):  '+Math.round(T.creances)+' F\n';
+  ctx+='Remboursements (E):      '+Math.round(T.remboursements)+' F\n';
+  ctx+='Encaissement total:      '+Math.round(T.encaissement)+' F\n';
+  ctx+='Gap total:               '+Math.round(T.gap)+' F'+(T.gap>0?' [POSITIF = manque]':T.gap<0?' [NÉGATIF = excédent]':' [ÉQUILIBRÉ]')+'\n';
+  var rembAnc=state.result.rembAnciens||0;
+  if(rembAnc>0)ctx+='Remboursements anciens:  '+Math.round(rembAnc)+' F (antérieurs à la période)\n';
+  var clientsRows=state.result.clientsRows||[];
+  if(clientsRows.length>0){
+    ctx+='\n--- SOLDES CLIENTS ---\n';
+    ctx+='Créances ouvertes totales: '+Math.round(state.result.creancesOuvertes||0)+' F\n';
+    var topOpen=clientsRows.filter(function(r){return r.solde>0;}).sort(function(a,b){return b.solde-a.solde;}).slice(0,8);
+    for(var j=0;j<topOpen.length;j++){
+      var cl=topOpen[j];
+      ctx+='  '+cl.client+' ('+cl.portfolio+'): accordées='+Math.round(cl.accordees)+' remb='+Math.round(cl.remboursements)+' solde='+Math.round(cl.solde)+'\n';
+    }
+  }
+  return ctx;
+}
+
+function recoToggleChat(){
+  recoChatOpen=!recoChatOpen;
+  var p=document.getElementById('recoChatPanel');
+  if(recoChatOpen)p.classList.add('open'); else p.classList.remove('open');
+  if(recoChatOpen&&!recoChatHistory.length){
+    recoAddMsg('assistant','Bonjour\u00a0! Je suis l\u2019assistant réconciliation Mata.\nSi une analyse est déjà chargée, pose-moi directement ta question (gap, clients, virements\u2026).\nSinon, lance d\u2019abord l\u2019analyse puis reviens me voir\u00a0!');
+  }
+  if(recoChatOpen){var inp=document.getElementById('recoChatInput');if(inp)inp.focus();}
+}
+
+function recoAddMsg(role,text){
+  var el=document.getElementById('recoChatMsgs');
+  var isUser=role==='user';
+  var div=document.createElement('div');
+  div.style.cssText='margin:6px 0;display:flex;justify-content:'+(isUser?'flex-end':'flex-start');
+  var bubble=document.createElement('div');
+  bubble.style.cssText='max-width:88%;padding:8px 12px;border-radius:'+(isUser?'10px 10px 2px 10px':'10px 10px 10px 2px')+';font-size:10px;line-height:1.5;background:'+(isUser?'var(--v)':'var(--s2)')+';color:'+(isUser?'#fff':'var(--tx)')+';border:1px solid '+(isUser?'var(--v)':'var(--bd)');
+  bubble.innerHTML=text.replace(/\*\*(.*?)\*\*/g,'<b style="color:var(--v2)">$1</b>').replace(/\n/g,'<br>');
+  div.appendChild(bubble);
+  el.appendChild(div);
+  el.scrollTop=el.scrollHeight;
+}
+
+function recoSendChat(){
+  var input=document.getElementById('recoChatInput');
+  var q=input.value.trim();
+  if(!q)return;
+  input.value='';
+  recoAddMsg('user',q);
+  recoChatHistory.push({role:'user',content:q});
+  var typingId='rtyping_'+Date.now();
+  var el=document.getElementById('recoChatMsgs');
+  var tDiv=document.createElement('div');
+  tDiv.id=typingId;
+  tDiv.style.cssText='margin:6px 0;display:flex;justify-content:flex-start';
+  tDiv.innerHTML='<div style="padding:8px 12px;border-radius:10px;font-size:10px;background:var(--s2);color:var(--tx3);border:1px solid var(--bd)">\uD83E\uDDE0 Analyse en cours\u2026</div>';
+  el.appendChild(tDiv);el.scrollTop=el.scrollHeight;
+  var ctx=buildRecoContext();
+  var systemFull=RECO_SYSTEM_PROMPT+'\n\n'+ctx;
+  var messages=[];
+  for(var h=0;h<recoChatHistory.length;h++)messages.push(recoChatHistory[h]);
+  (async function(){
+    var reqMessages=messages.slice();
+    var maxIter=5;
+    try{
+      while(maxIter-->0){
+        var body={model:'gpt-4o-mini',max_tokens:2048,system:systemFull,messages:reqMessages,tools:RECO_TOOLS};
+        var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        var data=await r.json();
+        if(data.error){throw new Error(data.error.message||JSON.stringify(data.error));}
+        if(data.stop_reason==='tool_use'){
+          var toolResults=[];
+          var assistantContent=data.content||[];
+          var td=document.getElementById(typingId);
+          if(td)td.querySelector('div').innerHTML='\uD83D\uDD0D Interrogation des APIs\u2026';
+          for(var ci=0;ci<assistantContent.length;ci++){
+            var blk=assistantContent[ci];
+            if(blk.type==='tool_use'){
+              var result=await recoExecuteTool(blk.name,blk.input);
+              toolResults.push({type:'tool_result',tool_use_id:blk.id,content:result});
+            }
+          }
+          reqMessages=reqMessages.concat([{role:'assistant',content:assistantContent},{role:'user',content:toolResults}]);
+        } else {
+          var txt='';
+          var cont=data.content||[];
+          for(var ci2=0;ci2<cont.length;ci2++){if(cont[ci2].type==='text')txt+=cont[ci2].text;}
+          txt=txt||'\u274c Réponse vide';
+          var t2=document.getElementById(typingId);if(t2)t2.remove();
+          recoAddMsg('assistant',txt);
+          recoChatHistory.push({role:'assistant',content:txt});
+          return;
+        }
+      }
+      throw new Error('Trop d\'itérations outils');
+    }catch(e){
+      var t3=document.getElementById(typingId);if(t3)t3.remove();
+      recoAddMsg('assistant','\u274c Erreur\u00a0: '+e.message);
+    }
+  })();
+}
+
+window.recoToggleChat=recoToggleChat;
+window.recoSendChat=recoSendChat;
 </script>
+
+<!-- Reco AI Chat -->
+<button class="recoChatBtn" onclick="recoToggleChat()" title="Assistant réconciliation">💬</button>
+<div id="recoChatPanel" class="recoChatPanel">
+  <div class="recoChatHd">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:14px">🤖</span>
+      <b style="font-size:11px;color:var(--tx)">Assistant Réconciliation</b>
+      <span style="font-size:8px;color:var(--tx3)">· GPT-4o mini</span>
+      <span style="font-size:8px;color:var(--g)">● APIs</span>
+    </div>
+    <span onclick="recoToggleChat()" style="cursor:pointer;color:var(--tx3);font-size:20px;line-height:1">&times;</span>
+  </div>
+  <div id="recoChatMsgs" class="recoChatMsgs"></div>
+  <div class="recoChatFt">
+    <input id="recoChatInput" type="text" placeholder="Pose une question sur la réconciliation…"
+      onkeydown="if(event.key==='Enter')recoSendChat()">
+    <button onclick="recoSendChat()">Envoyer</button>
+  </div>
+</div>
 </body>
 </html>
