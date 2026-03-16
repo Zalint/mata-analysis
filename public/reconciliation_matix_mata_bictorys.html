@@ -460,7 +460,7 @@ function reconcile() {
     if (val <= 0) continue;
     const effectiveDate = state.virMode === "j_minus_1" ? shiftDate(row.__date) : row.__date;
     if (!virDetail[effectiveDate]) virDetail[effectiveDate] = [];
-    virDetail[effectiveDate].push({ client: row["Client"]||"", val, origDate: row.__date });
+    virDetail[effectiveDate].push({ client: row["Client"]||"", val, origDate: row.__date, createdAt: row["created_at"]||"", saisiPar: row["saisi_par"]||"" });
     // (exclusion handled in virMap loop and totalVir computation)
   }
   // If virement mode active: clear versDetail for drill-down
@@ -710,7 +710,7 @@ function renderDrillDown(date, result) {
     { title:"🔄 Virements", color:"#34D399", custom: ((result.virDetail||{})[date]||[]).length === 0 ? null : `
       <table style="width:100%;border-collapse:collapse;font-size:10px;margin-top:4px">
         <thead><tr>
-          ${["Client","Date orig.","Montant",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
+          ${["Client","Date orig.","Saisi le","Par","Montant",""].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join("")}
         </tr></thead>
         <tbody>
           ${((result.virDetail||{})[date]||[]).map((r,i)=>{
@@ -719,6 +719,8 @@ function renderDrillDown(date, result) {
             return `<tr style="background:${i%2===0?C.bg:C.surface};opacity:${excl?0.4:1}">
               <td style="padding:5px 8px;color:${excl?C.muted:C.text};text-decoration:${excl?'line-through':'none'}">${r.client}</td>
               <td style="padding:5px 8px;color:${C.muted}">${r.origDate}</td>
+              <td style="padding:5px 8px;color:${C.muted};white-space:nowrap">${r.createdAt}</td>
+              <td style="padding:5px 8px;color:${C.muted}">${r.saisiPar}</td>
               <td style="padding:5px 8px;color:#34D399;font-weight:700;text-align:right">${fmt(r.val)}</td>
               <td style="padding:5px 8px;text-align:center">
                 <button onclick="toggleVirExclude('${virId}')"
