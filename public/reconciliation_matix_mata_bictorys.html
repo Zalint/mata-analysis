@@ -623,16 +623,18 @@ function filterCash(uid) {
   const tel = (document.getElementById(uid+'_ftel')||{}).value?.toLowerCase()||'';
   const tbody = document.querySelector('#'+uid+'_table tbody');
   if (!tbody) return;
-  let shown = 0;
+  let shown = 0, total = 0;
   tbody.querySelectorAll('tr').forEach(tr => {
     const ok = (!ref || (tr.dataset.ref||'').toLowerCase().includes(ref))
             && (!psp || (tr.dataset.psp||'').toLowerCase().includes(psp))
             && (!tel || (tr.dataset.phone||'').toLowerCase().includes(tel));
     tr.style.display = ok ? '' : 'none';
-    if (ok) shown++;
+    if (ok) { shown++; total += parseFloat(tr.dataset.amount||0); }
   });
   const counter = document.getElementById(uid+'_count');
   if (counter) counter.textContent = shown + ' ligne' + (shown!==1?'s':'');
+  const tot = document.getElementById(uid+'_total');
+  if (tot) tot.textContent = total > 0 ? new Intl.NumberFormat('fr-FR').format(Math.round(total)) + ' F' : '—';
 }
 function toggleVirExclude(id) {
   state.virExcludes[id] = !state.virExcludes[id];
@@ -732,10 +734,12 @@ function renderDrillDown(date, result) {
           <input id="${uid}_fpsp"   placeholder="PSP…"       oninput="filterCash('${uid}')" style="${inpStyle}">
           <input id="${uid}_ftel"   placeholder="Téléphone…" oninput="filterCash('${uid}')" style="${inpStyle}">
           <span id="${uid}_count" style="color:${C.muted};font-size:10px">${cash.length} lignes</span>
+          <span style="color:${C.muted};font-size:10px">Total :</span>
+          <span id="${uid}_total" style="color:${C.accent};font-size:10px;font-weight:700">${new Intl.NumberFormat('fr-FR').format(Math.round(cash.reduce((s,r)=>s+r.amount,0)))} F</span>
         </div>
         <table id="${uid}_table" style="width:100%;border-collapse:collapse;font-size:10px">
           <thead><tr>${["Heure","PSP","Téléphone","Montant","Frais","Réf"].map(h=>`<th style="padding:4px 8px;color:${C.muted};text-align:left;border-bottom:1px solid ${C.border}">${h}</th>`).join('')}</tr></thead>
-          <tbody>${cash.map((r,i)=>`<tr style="background:${i%2===0?C.bg:C.surface}" data-ref="${r.ref}" data-psp="${r.psp}" data-phone="${r.phone}">
+          <tbody>${cash.map((r,i)=>`<tr style="background:${i%2===0?C.bg:C.surface}" data-ref="${r.ref}" data-psp="${r.psp}" data-phone="${r.phone}" data-amount="${r.amount}">
             <td style="padding:4px 8px;color:${C.muted};white-space:nowrap">${r.heure}</td>
             <td style="padding:4px 8px;color:${C.text}">${r.psp.replace(/_/g,' ')}</td>
             <td style="padding:4px 8px;color:${C.accent}">${r.phone}</td>
