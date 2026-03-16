@@ -228,13 +228,10 @@ td.rcH .rcD{display:none;position:fixed;z-index:200;background:#1e293b;color:var
       <label>Date d&eacute;but<input type="date" id="apDebut"></label>
       <label>Date fin<input type="date" id="apFin"></label>
       <button id="apBtn" onclick="launchApiAnalysis()">&#128640; Lancer l&rsquo;analyse</button>
+      <label style="display:inline-flex;align-items:center;gap:5px;font-size:9px;color:var(--tx3);cursor:pointer;margin-left:4px" title="Ignorer le cache et recharger depuis l'API"><input type="checkbox" id="apForceRefresh" style="accent-color:var(--r);width:11px;height:11px"> Forcer</label>
     </div>
     <div id="apStatus"></div>
-    <div id="apCache" style="margin-top:8px;display:none;align-items:center;gap:8px;flex-wrap:wrap">
-      <span id="apCacheLbl" style="font-size:9px;color:var(--g2);font-family:'JetBrains Mono',monospace"></span>
-      <button onclick="window.loadCacheAndShow()" style="font-size:9px;padding:3px 10px;background:#22c55e20;border:1px solid #22c55e40;color:var(--g2);border-radius:5px;cursor:pointer">&#9654; Charger</button>
-      <button onclick="window.clearAnalysisCache()" style="font-size:9px;padding:3px 10px;background:var(--s2);border:1px solid var(--bd);color:var(--r2);border-radius:5px;cursor:pointer">&#128465; Vider le cache</button>
-    </div>
+    <div id="apCache" style="margin-top:8px;display:none;padding:6px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;flex-direction:column;gap:0"></div>
   </div>
   <details id="manualImport" style="margin-top:4px;border:1px solid var(--bd);border-radius:8px;overflow:hidden">
     <summary style="padding:10px 14px;cursor:pointer;font-size:9px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:1.5px;list-style:none;display:flex;align-items:center;gap:6px;background:var(--s1)">
@@ -696,7 +693,7 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
   var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
   if(d1)d1.value=fmt(first);
   if(d2)d2.value=fmt(end);
-  /* Auto-restore cache on page load */
+  /* Auto-restore most recent cache entry on page load */
   var autoCache=getCacheInfo();
   if(autoCache&&autoCache.DATA&&Object.keys(autoCache.DATA).length>0){
     /* Restore dates in pickers */
@@ -709,9 +706,9 @@ function showErr(m){var el=document.getElementById('errBox');el.textContent=m+'\
     var bk2=document.getElementById('backToUpload');if(bk2)bk2.style.display='inline';
     var br2=document.getElementById('btnRefresh');if(br2)br2.style.display='inline';
     buildTabs();buildCatTabs();buildFpBar();render();
-  }else{
-    showCacheBanner();
   }
+  /* Always show banner (lists all cached ranges) */
+  showCacheBanner();
 })();
 
 var drop=document.getElementById('drop'),fi=document.getElementById('fi');
@@ -1167,7 +1164,19 @@ function buildFpBar(){
   document.getElementById('btnCharts').addEventListener('click',exportToCharts);
 }
 /*══════ API PERIOD ANALYSIS ══════*/
-var MATA_CACHE_KEY='mata_analysis_cache';
+var MATA_CACHE_KEY='mata_analysis_cache_v2';
+
+/* Cache structure: { entries: { "debut|fin": { DATA, VENTES_DATA, PACK_DATA, PRIX, debut, fin, savedAt } } } */
+
+function _cacheKey(debut,fin){return debut+'|'+fin;}
+
+function _loadCacheStore(){
+  try{var raw=localStorage.getItem(MATA_CACHE_KEY);return raw?JSON.parse(raw):{entries:{}};}catch(e){return {entries:{}};}
+}
+
+function _saveCacheStore(store){
+  try{localStorage.setItem(MATA_CACHE_KEY,JSON.stringify(store));return true;}catch(e){console.error('Cache save:',e);return false;}
+}
 
 function saveToCache(debut,fin){
   try{
@@ -1181,12 +1190,13 @@ function saveToCache(debut,fin){
         return d;
       });
     }
-    localStorage.setItem(MATA_CACHE_KEY,JSON.stringify({
+    var store=_loadCacheStore();
+    store.entries[_cacheKey(debut,fin)]={
       DATA:dataSerial,VENTES_DATA:VENTES_DATA,PACK_DATA:PACK_DATA,
       PRIX:{bovin:PRIX.bovin,veau:PRIX.veau,poulet:PRIX.poulet,agneau:PRIX.agneau,poisson:PRIX.poisson},
       debut:debut,fin:fin,savedAt:new Date().toISOString()
-    }));
-    return true;
+    };
+    return _saveCacheStore(store);
   }catch(e){console.error('Cache save:',e);return false;}
 }
 
@@ -1202,31 +1212,56 @@ function restoreFromCache(cache){
   if(cache.PRIX){PRIX.bovin=cache.PRIX.bovin;PRIX.veau=cache.PRIX.veau;PRIX.poulet=cache.PRIX.poulet;PRIX.agneau=cache.PRIX.agneau;PRIX.poisson=cache.PRIX.poisson;}
 }
 
-function getCacheInfo(){
-  try{var raw=localStorage.getItem(MATA_CACHE_KEY);return raw?JSON.parse(raw):null;}catch(e){return null;}
+function getCacheEntry(debut,fin){
+  var store=_loadCacheStore();
+  return store.entries[_cacheKey(debut,fin)]||null;
 }
+
+function getCacheEntries(){
+  var store=_loadCacheStore();
+  return Object.values(store.entries).sort(function(a,b){return b.savedAt.localeCompare(a.savedAt);});
+}
+
+function getCacheInfo(){
+  /* Returns the most recently saved entry (for backwards compat) */
+  var entries=getCacheEntries();
+  return entries.length>0?entries[0]:null;
+}
+
+function clearCacheEntry(debut,fin){
+  var store=_loadCacheStore();
+  delete store.entries[_cacheKey(debut,fin)];
+  _saveCacheStore(store);
+  showCacheBanner();
+}
+window.clearCacheEntry=clearCacheEntry;
 
 function clearAnalysisCache(){
   localStorage.removeItem(MATA_CACHE_KEY);
-  var el=document.getElementById('apCache');if(el)el.style.display='none';
+  showCacheBanner();
 }
 window.clearAnalysisCache=clearAnalysisCache;
 
 function refreshAnalysis(){
-  var cache=getCacheInfo();
-  var debut=cache&&cache.debut||document.getElementById('apDebut').value;
-  var fin=cache&&cache.fin||document.getElementById('apFin').value;
+  var debut=document.getElementById('apDebut').value;
+  var fin=document.getElementById('apFin').value;
+  if(!debut||!fin){
+    var latest=getCacheInfo();
+    if(latest){debut=latest.debut;fin=latest.fin;}
+  }
   if(debut&&fin){
     var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
     if(d1)d1.value=debut;if(d2)d2.value=fin;
-    launchApiAnalysis();
+    launchApiAnalysis(true);
   }
 }
 window.refreshAnalysis=refreshAnalysis;
 
-function loadCacheAndShow(){
-  var cache=getCacheInfo();if(!cache)return;
-  restoreFromCache(cache);
+function loadCacheEntryAndShow(debut,fin){
+  var entry=getCacheEntry(debut,fin);if(!entry)return;
+  restoreFromCache(entry);
+  var d1=document.getElementById('apDebut'),d2=document.getElementById('apFin');
+  if(d1)d1.value=debut;if(d2)d2.value=fin;
   var uz=document.getElementById('UZ'),dd=document.getElementById('D');
   if(uz)uz.style.display='none';
   if(dd)dd.style.display='block';
@@ -1235,18 +1270,36 @@ function loadCacheAndShow(){
   window.scrollTo(0,0);
   buildTabs();buildCatTabs();buildFpBar();render();
 }
+window.loadCacheEntryAndShow=loadCacheEntryAndShow;
+
+function loadCacheAndShow(){
+  var latest=getCacheInfo();if(!latest)return;
+  loadCacheEntryAndShow(latest.debut,latest.fin);
+}
 window.loadCacheAndShow=loadCacheAndShow;
 
 function showCacheBanner(){
-  var cache=getCacheInfo();
+  var entries=getCacheEntries();
   var el=document.getElementById('apCache');
-  if(!cache||!el)return;
-  var saved=new Date(cache.savedAt);
-  var mins=Math.round((Date.now()-saved.getTime())/60000);
-  var ago=mins<60?(mins+'min'):Math.round(mins/60)+'h';
-  var lbl=document.getElementById('apCacheLbl');
-  if(lbl)lbl.textContent='\uD83D\uDCBE Cache: '+cache.debut+' → '+cache.fin+' (sauvé il y a '+ago+')';
-  el.style.display='flex';
+  if(!el)return;
+  if(entries.length===0){el.style.display='none';return;}
+  var html='<div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--tx3);margin-bottom:4px">&#128190; Cache disponible</div>';
+  for(var i=0;i<entries.length;i++){
+    var e=entries[i];
+    var saved=new Date(e.savedAt);
+    var mins=Math.round((Date.now()-saved.getTime())/60000);
+    var ago=mins<60?(mins+'min'):(mins<1440?Math.round(mins/60)+'h':Math.floor(mins/1440)+'j');
+    var dk=e.debut+'|'+e.fin;
+    html+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:3px 0;border-bottom:1px solid var(--bd)">'
+      +'<span style="font-size:9px;color:var(--g2);font-family:\'JetBrains Mono\',monospace;min-width:180px">'+e.debut+' → '+e.fin+'</span>'
+      +'<span style="font-size:8px;color:var(--tx3)">sauvé il y a '+ago+'</span>'
+      +'<button onclick="loadCacheEntryAndShow(\''+e.debut+'\',\''+e.fin+'\')" style="font-size:9px;padding:2px 9px;background:#22c55e20;border:1px solid #22c55e40;color:var(--g2);border-radius:5px;cursor:pointer">&#9654; Charger</button>'
+      +'<button onclick="clearCacheEntry(\''+e.debut+'\',\''+e.fin+'\')" style="font-size:9px;padding:2px 7px;background:var(--s2);border:1px solid var(--bd);color:var(--r2);border-radius:5px;cursor:pointer">&#10005;</button>'
+      +'</div>';
+  }
+  html+='<div style="margin-top:5px"><button onclick="clearAnalysisCache()" style="font-size:8px;padding:2px 9px;background:var(--s2);border:1px solid var(--bd);color:var(--r2);border-radius:5px;cursor:pointer">&#128465; Tout vider</button></div>';
+  el.innerHTML=html;
+  el.style.display='block';
 }
 
 /* Category mapping: reconciliation product name → internal cat string
@@ -1290,11 +1343,36 @@ function hideMataLoader(){
 function fmtApiDate(ymd){/* YYYY-MM-DD → DD/MM/YYYY URL-encoded */
   var p=ymd.split('-');return encodeURIComponent(p[2]+'/'+p[1]+'/'+p[0]);
 }
-async function launchApiAnalysis(){
+async function launchApiAnalysis(forceRefresh){
   var debut=document.getElementById('apDebut').value;
   var fin=document.getElementById('apFin').value;
   if(!debut||!fin){apStatus('Veuillez saisir une date de d\u00e9but et de fin.','err');return;}
   if(debut>fin){apStatus('La date de d\u00e9but doit \u00eatre ant\u00e9rieure \u00e0 la date de fin.','err');return;}
+
+  /* Cache hit: load from cache unless force refresh is requested */
+  var chkForce=document.getElementById('apForceRefresh');
+  var isForce=forceRefresh|||(chkForce&&chkForce.checked);
+  if(!isForce){
+    var hit=getCacheEntry(debut,fin);
+    if(hit){
+      restoreFromCache(hit);
+      var uz0=document.getElementById('UZ'),dd0=document.getElementById('D');
+      if(uz0)uz0.style.display='none';
+      if(dd0)dd0.style.display='block';
+      var bk0=document.getElementById('backToUpload');if(bk0)bk0.style.display='inline';
+      var br0=document.getElementById('btnRefresh');if(br0)br0.style.display='inline';
+      window.scrollTo(0,0);
+      buildTabs();buildCatTabs();buildFpBar();render();
+      var nPdvs0=Object.keys(DATA).length;
+      var nDays0=0;Object.keys(DATA).forEach(function(p){nDays0+=DATA[p].length;});
+      var saved0=new Date(hit.savedAt);
+      var mins0=Math.round((Date.now()-saved0.getTime())/60000);
+      var ago0=mins0<60?(mins0+'min'):(mins0<1440?Math.round(mins0/60)+'h':Math.floor(mins0/1440)+'j');
+      apStatus('\uD83D\uDCBE Cache charg\u00e9 ('+nPdvs0+' PdV, '+nDays0+' jours — sauvegard\u00e9 il y a '+ago0+')','ok');
+      return;
+    }
+  }
+
   var btn=document.getElementById('apBtn');
   btn.disabled=true;
   btn.innerHTML='&#128640; En cours\u2026';
@@ -1510,6 +1588,7 @@ async function launchApiAnalysis(){
     var nDays=0;Object.keys(DATA).forEach(function(p){nDays+=DATA[p].length;});
     var nVentes=Object.keys(VENTES_DATA.orders).length;
     saveToCache(debut,fin);
+    showCacheBanner();
     apStatus('\u2705 '+nPdvs+' PdV, '+nDays+' jours, '+nVentes+' ventes charg\u00e9s — Boeuf: '+pxBoeuf+' FCFA/kg · Veau: '+pxVeau+' FCFA/kg','ok');
 
   }catch(err){
