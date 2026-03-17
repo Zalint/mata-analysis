@@ -585,7 +585,7 @@ function drawPrixChart(){
       scales:{
         x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
         y:{beginAtZero:false,grid:GRID,ticks:{...TICK,callback:function(v){return Math.round(v).toLocaleString('fr-FR');}},
-          title:{display:true,text:'F/kg',color:'#555',font:{size:9,family:"'JetBrains Mono',monospace"}}}
+          title:{display:true,text:'F/kg',color:'#999',font:{size:12,weight:'bold',family:"'JetBrains Mono',monospace"}}}
       }
     }
   });
