@@ -63,6 +63,13 @@
     .tab-content{display:none}
     .tab-content.active{display:block}
 
+    /* ── CHART TOOLBAR ── */
+    .chart-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+    .chart-toolbar .tb-btn{background:#111;border:1px solid #333;color:#999;font-family:inherit;font-size:9px;padding:3px 10px;cursor:pointer;letter-spacing:.5px;transition:all .15s}
+    .chart-toolbar .tb-btn:hover{border-color:#FF6B00;color:#FF6B00}
+    .chart-toolbar .tb-btn.active{background:#FF6B00;border-color:#FF6B00;color:#000;font-weight:700}
+    .chart-toolbar .tb-sep{width:1px;height:16px;background:#333;margin:0 4px}
+
     /* ── STATS TABLE ── */
     .stats-tbl{width:100%;border-collapse:collapse;margin-top:16px;font-size:10px}
     .stats-tbl th{text-align:left;font-size:7px;color:#666;letter-spacing:1.5px;text-transform:uppercase;padding:6px 10px;border-bottom:1px solid #1a1a1a}
@@ -158,7 +165,17 @@
 <div id="tab-prix-achat" class="tab-content" style="padding:16px">
   <div class="panel">
     <div class="panel-title">Prix d'achat journalier — Boeuf &amp; Veau (F/kg)</div>
-    <canvas id="cPrixAchat" style="min-height:60vh"></canvas>
+    <div class="chart-toolbar">
+      <button class="tb-btn active" onclick="setPrixMode('line')">Courbe</button>
+      <button class="tb-btn" onclick="setPrixMode('bar')">Histogramme</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="zoomPrix(-10)">−</button>
+      <span id="zoomLabel" style="font-size:9px;color:#666;min-width:30px;text-align:center">40%</span>
+      <button class="tb-btn" onclick="zoomPrix(+10)">+</button>
+    </div>
+    <div id="prixChartWrap" style="height:40vh;position:relative">
+      <canvas id="cPrixAchat"></canvas>
+    </div>
   </div>
   <div id="prixAchatStats" class="panel" style="display:none">
     <div class="panel-title">Statistiques</div>
@@ -454,10 +471,59 @@ function switchTab(tabId){
   document.querySelectorAll('.tab-btn').forEach(function(btn){btn.classList.toggle('active',btn.dataset.tab===tabId);});
   document.querySelectorAll('.tab-content').forEach(function(tc){tc.classList.toggle('active',tc.id==='tab-'+tabId);});
   document.getElementById('filterbar').style.display=(tabId==='overview')?'flex':'none';
-  if(tabId==='prix-achat'&&!CH['cPrixAchat']){renderPrixAchat();}
+  if(tabId==='prix-achat'&&!PRIX_DATA){renderPrixAchat();}
 }
 
 // ── PRIX ACHAT CHART ────────────────────────────────────────────────────────
+var PRIX_MODE='line';
+var PRIX_ZOOM=40; // vh %
+var PRIX_DATA=null; // {dates,boeufSans,boeufAvec,veauSans,veauAvec}
+
+function zoomPrix(delta){
+  PRIX_ZOOM=Math.max(20,Math.min(50,PRIX_ZOOM+delta));
+  document.getElementById('prixChartWrap').style.height=PRIX_ZOOM+'vh';
+  document.getElementById('zoomLabel').textContent=PRIX_ZOOM+'%';
+  if(PRIX_DATA)drawPrixChart();
+}
+function setPrixMode(mode){
+  PRIX_MODE=mode;
+  document.querySelectorAll('#tab-prix-achat .chart-toolbar .tb-btn').forEach(function(b,i){
+    if(i<2)b.classList.toggle('active',(mode==='line'&&i===0)||(mode==='bar'&&i===1));
+  });
+  if(PRIX_DATA)drawPrixChart();
+}
+
+function drawPrixChart(){
+  if(!PRIX_DATA)return;
+  var d=PRIX_DATA,isBar=PRIX_MODE==='bar';
+  dc('cPrixAchat');
+  var datasets=isBar?[
+    {label:'Boeuf sans abats',data:d.boeufSans,backgroundColor:'#FF6B00cc',borderColor:'#FF6B00',borderWidth:1},
+    {label:'Boeuf avec abats',data:d.boeufAvec,backgroundColor:'#FF6B0055',borderColor:'#FF6B0088',borderWidth:1},
+    {label:'Veau sans abats',data:d.veauSans,backgroundColor:'#FFD700cc',borderColor:'#FFD700',borderWidth:1},
+    {label:'Veau avec abats',data:d.veauAvec,backgroundColor:'#FFD70055',borderColor:'#FFD70088',borderWidth:1},
+  ]:[
+    {label:'Boeuf sans abats',data:d.boeufSans,borderColor:'#FF6B00',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#FF6B00',tension:0.2,spanGaps:true},
+    {label:'Boeuf avec abats',data:d.boeufAvec,borderColor:'#FF6B0088',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:3,pointBackgroundColor:'#FF6B0088',tension:0.2,spanGaps:true},
+    {label:'Veau sans abats',data:d.veauSans,borderColor:'#FFD700',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#FFD700',tension:0.2,spanGaps:true},
+    {label:'Veau avec abats',data:d.veauAvec,borderColor:'#FFD70088',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:3,pointBackgroundColor:'#FFD70088',tension:0.2,spanGaps:true},
+  ];
+  CH['cPrixAchat']=new Chart(document.getElementById('cPrixAchat'),{
+    type:isBar?'bar':'line',
+    data:{labels:d.dates,datasets:datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:LEG,tooltip:{backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
+        callbacks:{label:function(ctx){return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString('fr-FR')+' F/kg';}}}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
+        y:{beginAtZero:false,grid:GRID,ticks:{...TICK,callback:function(v){return Math.round(v).toLocaleString('fr-FR');}},
+          title:{display:true,text:'F/kg',color:'#555',font:{size:9,family:"'JetBrains Mono',monospace"}}}
+      }
+    }
+  });
+}
+
 function renderPrixAchat(){
   var noDataEl=document.getElementById('prixAchatNoData');
   var statsEl=document.getElementById('prixAchatStats');
@@ -500,27 +566,8 @@ function renderPrixAchat(){
     }else{veauSans.push(null);veauAvec.push(null);}
   });
 
-  // Render chart
-  dc('cPrixAchat');
-  CH['cPrixAchat']=new Chart(document.getElementById('cPrixAchat'),{
-    type:'line',
-    data:{labels:dates,datasets:[
-      {label:'Boeuf sans abats',data:boeufSans,borderColor:'#FF6B00',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#FF6B00',tension:0.2,spanGaps:true},
-      {label:'Boeuf avec abats',data:boeufAvec,borderColor:'#FF6B0088',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:3,pointBackgroundColor:'#FF6B0088',tension:0.2,spanGaps:true},
-      {label:'Veau sans abats',data:veauSans,borderColor:'#FFD700',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#FFD700',tension:0.2,spanGaps:true},
-      {label:'Veau avec abats',data:veauAvec,borderColor:'#FFD70088',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:3,pointBackgroundColor:'#FFD70088',tension:0.2,spanGaps:true},
-    ]},
-    options:{
-      responsive:true,animation:false,
-      plugins:{legend:LEG,tooltip:{backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
-        callbacks:{label:function(ctx){return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString('fr-FR')+' F/kg';}}}},
-      scales:{
-        x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
-        y:{beginAtZero:false,grid:GRID,ticks:{...TICK,callback:function(v){return Math.round(v).toLocaleString('fr-FR');}},
-          title:{display:true,text:'F/kg',color:'#555',font:{size:9,family:"'JetBrains Mono',monospace"}}}
-      }
-    }
-  });
+  PRIX_DATA={dates:dates,boeufSans:boeufSans,boeufAvec:boeufAvec,veauSans:veauSans,veauAvec:veauAvec};
+  drawPrixChart();
 
   // ── STATS TABLE ──
   var series=[
