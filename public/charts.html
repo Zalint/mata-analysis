@@ -566,6 +566,19 @@ function renderPrixAchat(){
     }else{veauSans.push(null);veauAvec.push(null);}
   });
 
+  // Accumulate totals per bete
+  var totals={boeuf:{count:0,kg:0,cost:0,abats:0},veau:{count:0,kg:0,cost:0,abats:0}};
+  RAW.achatsBoeuf.forEach(function(a){
+    if(!a.bete)return;
+    var b=String(a.bete).toLowerCase();
+    if(b!=='boeuf'&&b!=='veau')return;
+    var kg=a.nbr_kg||0,px=a.prix_sans_abats||0;
+    totals[b].count++;
+    totals[b].kg+=kg;
+    totals[b].cost+=px*kg;
+    totals[b].abats+=(a.abats||0);
+  });
+
   PRIX_DATA={dates:dates,boeufSans:boeufSans,boeufAvec:boeufAvec,veauSans:veauSans,veauAvec:veauAvec};
   drawPrixChart();
 
@@ -602,6 +615,33 @@ function renderPrixAchat(){
     html+='<td>'+fmtFull(st.vol)+' F/kg</td><td>'+fmtFull(st.amp)+' F/kg</td></tr>';
   });
   html+='</tbody></table>';
+  // ── SUMMARY TABLE ──
+  html+='</tbody></table>';
+  html+='<table class="stats-tbl" style="margin-top:24px"><thead><tr><th>Bête</th><th>Nb achats</th><th>Total Kg</th><th>Coût total (sans abats)</th><th>Total abats</th><th>Coût total (avec abats)</th></tr></thead><tbody>';
+  ['boeuf','veau'].forEach(function(b){
+    var t=totals[b];
+    if(!t.count)return;
+    hasStats=true;
+    var label=b==='boeuf'?'Boeuf':'Veau';
+    var color=b==='boeuf'?'#FF6B00':'#FFD700';
+    html+='<tr><td><span class="series-dot" style="background:'+color+'"></span>'+label+'</td>';
+    html+='<td>'+t.count+'</td>';
+    html+='<td>'+fmtFull(t.kg)+' kg</td>';
+    html+='<td>'+fmtFull(t.cost)+' F</td>';
+    html+='<td>'+fmtFull(t.abats)+' F</td>';
+    html+='<td>'+fmtFull(t.cost-t.abats)+' F</td></tr>';
+  });
+  var grandKg=totals.boeuf.kg+totals.veau.kg;
+  var grandCost=totals.boeuf.cost+totals.veau.cost;
+  var grandAbats=totals.boeuf.abats+totals.veau.abats;
+  html+='<tr style="border-top:1px solid #333;font-weight:700"><td>TOTAL</td>';
+  html+='<td>'+(totals.boeuf.count+totals.veau.count)+'</td>';
+  html+='<td>'+fmtFull(grandKg)+' kg</td>';
+  html+='<td>'+fmtFull(grandCost)+' F</td>';
+  html+='<td>'+fmtFull(grandAbats)+' F</td>';
+  html+='<td>'+fmtFull(grandCost-grandAbats)+' F</td></tr>';
+  html+='</tbody></table>';
+
   if(hasStats){
     statsEl.style.display='block';
     document.getElementById('statsTableWrap').innerHTML=html;
