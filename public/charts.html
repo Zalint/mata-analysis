@@ -41,7 +41,7 @@
     #kpiRow{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#1a1a1a;border-bottom:2px solid #1a1a1a}
     .kpi{background:#050505;padding:16px 20px}
     .kpi-lbl{font-size:7px;color:#666;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-    .kpi-val{font-size:24px;font-weight:800;color:#FF6B00;letter-spacing:-0.5px}
+    .kpi-val{font-size:18px;font-weight:800;color:#FF6B00;letter-spacing:-0.5px}
     .kpi-val.pos{color:#22C55E}
     .kpi-val.neg{color:#EF4444}
     .kpi-sub{font-size:9px;color:#555;margin-top:5px}
@@ -333,18 +333,19 @@ function render(){
 
   // ── KPIs — use exact Analysis totals ────────────────────────────────────────
   const T=RAW.totals;
-  document.getElementById('kCA').textContent=fmtK(T.ca)+' F';
+  function fmtN(v){return Math.round(v).toLocaleString('fr-FR');}
+  document.getElementById('kCA').textContent=fmtN(T.ca)+' F';
   document.getElementById('kCASub').textContent=dates.length+' jours';
-  document.getElementById('kCost').textContent=fmtK(T.cost)+' F';
+  document.getElementById('kCost').textContent=fmtN(T.cost)+' F';
   document.getElementById('kCostSub').textContent=T.ca>0?fmtP(T.cost/T.ca)+' du CA':'–';
   const mbEl=document.getElementById('kMrg');
-  mbEl.textContent=fmtK(T.marginBrute)+' F';
+  mbEl.textContent=fmtN(T.marginBrute)+' F';
   mbEl.className='kpi-val'+(T.marginBrute>=0?' pos':' neg');
   document.getElementById('kMrgSub').textContent=T.ca>0?fmtP(T.marginBrute/T.ca)+' du CA':'–';
-  document.getElementById('kChg').textContent=fmtK(T.chg)+' F';
+  document.getElementById('kChg').textContent=fmtN(T.chg)+' F';
   document.getElementById('kChgSub').textContent=T.ca>0?fmtP(T.chg/T.ca)+' du CA':'–';
   const mnEl=document.getElementById('kMrgNet');
-  mnEl.textContent=fmtK(T.marginNet)+' F';
+  mnEl.textContent=fmtN(T.marginNet)+' F';
   mnEl.className='kpi-val'+(T.marginNet>=0?' pos':' neg');
   document.getElementById('kMrgNetSub').textContent=T.ca>0?fmtP(T.marginNet/T.ca)+' du CA':'–';
 
