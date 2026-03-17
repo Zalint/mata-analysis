@@ -1418,6 +1418,20 @@ async function launchApiAnalysis(){
   var fin=document.getElementById('apFin').value;
   if(!debut||!fin){apStatus('Veuillez saisir une date de d\u00e9but et de fin.','err');return;}
   if(debut>fin){apStatus('La date de d\u00e9but doit \u00eatre ant\u00e9rieure \u00e0 la date de fin.','err');return;}
+  /* ── Cache hit: same date range already loaded → skip API calls ── */
+  var _cache=getCacheInfo();
+  if(_cache&&_cache.debut===debut&&_cache.fin===fin&&_cache.DATA&&Object.keys(_cache.DATA).length>0){
+    restoreFromCache(_cache);
+    var uz=document.getElementById('UZ'),dd=document.getElementById('D');
+    if(uz)uz.style.display='none';if(dd)dd.style.display='block';
+    var bk=document.getElementById('backToUpload');if(bk)bk.style.display='inline';
+    var br=document.getElementById('btnRefresh');if(br)br.style.display='inline';
+    window.scrollTo(0,0);
+    buildTabs();buildCatTabs();buildFpBar();render();
+    apStatus('\u2705 Donn\u00e9es charg\u00e9es depuis le cache ('+debut+' \u2192 '+fin+')','ok');
+    showCacheBanner();
+    return;
+  }
   var btn=document.getElementById('apBtn');
   btn.disabled=true;
   btn.innerHTML='&#128640; En cours\u2026';
