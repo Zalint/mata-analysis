@@ -82,7 +82,7 @@
     .panel:hover .panel-fs-btn{opacity:1}
     .panel-fs-btn:hover{color:#FF6B00;border-color:#FF6B00}
     .panel.fullscreen{position:fixed!important;top:0;left:0;right:0;bottom:0;z-index:500;padding:24px 32px;overflow:hidden;border:none;margin:0;width:100vw;height:100vh;display:flex;flex-direction:column}
-    .panel.fullscreen .panel-title{font-size:11px;margin-bottom:12px;flex-shrink:0}
+    .panel.fullscreen .panel-title{font-size:14px;margin-bottom:12px;flex-shrink:0}
     .panel.fullscreen .panel-fs-btn{opacity:1;top:12px;right:16px;font-size:10px;padding:4px 12px}
     .panel.fullscreen canvas{flex:1;min-height:0}
     body.has-fullscreen{overflow:hidden}
@@ -477,6 +477,25 @@ function render(){
 }
 
 // ── FULLSCREEN PANEL ────────────────────────────────────────────────────────
+function setChartFS(chart,fs){
+  chart.options.maintainAspectRatio=!fs;
+  var sz=fs?14:9, clr=fs?'#bbb':'#666', lsz=fs?12:9, lclr=fs?'#aaa':'#777';
+  // update all scale ticks
+  Object.keys(chart.options.scales||{}).forEach(function(k){
+    var s=chart.options.scales[k];
+    if(!s.ticks)s.ticks={};
+    s.ticks.color=clr;
+    s.ticks.font={size:sz,weight:fs?'bold':'normal',family:"'JetBrains Mono',monospace"};
+    if(s.title){s.title.color=fs?'#aaa':'#555';s.title.font={size:fs?12:9,family:"'JetBrains Mono',monospace"};}
+  });
+  // update legend
+  if(chart.options.plugins&&chart.options.plugins.legend&&chart.options.plugins.legend.labels){
+    chart.options.plugins.legend.labels.color=lclr;
+    chart.options.plugins.legend.labels.font={size:lsz};
+  }
+  chart.resize();
+  chart.update('none');
+}
 function toggleFullscreen(panel){
   var isFS=panel.classList.contains('fullscreen');
   if(isFS){
@@ -484,9 +503,8 @@ function toggleFullscreen(panel){
     document.body.classList.remove('has-fullscreen');
     var btn=panel.querySelector('.panel-fs-btn');
     if(btn)btn.textContent='⛶ EXPAND';
-    // restore maintainAspectRatio
     panel.querySelectorAll('canvas').forEach(function(cv){
-      if(CH[cv.id]){CH[cv.id].options.maintainAspectRatio=true;CH[cv.id].resize();}
+      if(CH[cv.id])setChartFS(CH[cv.id],false);
     });
   }else{
     // close any other fullscreen panel first
@@ -494,16 +512,15 @@ function toggleFullscreen(panel){
       p.classList.remove('fullscreen');
       var b=p.querySelector('.panel-fs-btn');if(b)b.textContent='⛶ EXPAND';
       p.querySelectorAll('canvas').forEach(function(cv){
-        if(CH[cv.id]){CH[cv.id].options.maintainAspectRatio=true;CH[cv.id].resize();}
+        if(CH[cv.id])setChartFS(CH[cv.id],false);
       });
     });
     panel.classList.add('fullscreen');
     document.body.classList.add('has-fullscreen');
     var btn=panel.querySelector('.panel-fs-btn');
     if(btn)btn.textContent='✕ CLOSE';
-    // set maintainAspectRatio false so chart fills fullscreen
     panel.querySelectorAll('canvas').forEach(function(cv){
-      if(CH[cv.id]){CH[cv.id].options.maintainAspectRatio=false;CH[cv.id].resize();}
+      if(CH[cv.id])setChartFS(CH[cv.id],true);
     });
   }
 }
