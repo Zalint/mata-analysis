@@ -2299,7 +2299,7 @@ function renderPdv(el,pdv,ck){
       h+='<th>R\u00e9el FCFA</th><th>Co\u00fbt Achat</th><th>Marge</th></tr></thead>';
       h+='<tbody>';
       /* Total row (collapsible trigger) */
-      var mpTotFmlLines=mpAllNames.map(function(pn){var d=mpMap[pn];var c=Math.round(d.cost||0);if(c===0)return null;var q=d.theo!==0?d.theo:d.reel;return pn+': '+F(q)+'kg \u00d7 '+FK(Math.round(d.px))+' = '+FK(c);}).filter(Boolean).join('\n')+'  \n= Total: '+FK(Math.round(mpTotCost));
+      var mpTotFmlLines=mpAllNames.map(function(pn){var d=mpMap[pn];var c=Math.round(d.cost||0);if(c===0)return null;var useTheo=d.theo!==0;var q=useTheo?d.theo:d.reel;return pn+': '+F(q)+'kg('+(useTheo?'theo':'reel')+') \u00d7 '+FK(Math.round(d.px))+' = '+FK(c);}).filter(Boolean).join('\n')+'  \n= Total: '+FK(Math.round(mpTotCost));
       h+='<tr class="tot" style="cursor:pointer" onclick="var rows=this.closest(\'table\').querySelectorAll(\'.mp-row-'+mpId+'\');var hidden=rows.length&&rows[0].style.display===\'none\';rows.forEach(function(r){r.style.display=hidden?\'\':\'none\'});this.querySelector(\'.arr\').textContent=hidden?\'\u25bc\':\'\u25b6\'">';
       h+='<td><span class="arr">\u25bc</span> TOTAL</td>';
       h+='<td style="color:var(--b2)">'+FK(Math.round(mpTotCA))+'</td>';
@@ -2311,8 +2311,8 @@ function renderPdv(el,pdv,ck){
         var mpn=mpNames[mpi2],mpd=mpMap[mpn];
         var mpCA=mpd.reelF||0,mpCost=mpd.cost||0,mpMarge=mpCA-mpCost;
         var mpCol=mpMarge>=0?'var(--t)':'var(--r2)';
-        var mpQty=mpd.theo!==0?mpd.theo:mpd.reel;
-        var mpFml=mpn+': '+F(mpQty)+'kg \u00d7 '+FK(Math.round(mpd.px))+' F/kg = '+FK(Math.round(mpCost));
+        var mpUseTheo=mpd.theo!==0;var mpQty=mpUseTheo?mpd.theo:mpd.reel;
+        var mpFml=mpn+': '+F(mpQty)+'kg('+(mpUseTheo?'theo':'reel')+') \u00d7 '+FK(Math.round(mpd.px))+' F/kg = '+FK(Math.round(mpCost));
         h+='<tr class="mp-row-'+mpId+'" style="font-size:11px">';
         h+='<td style="padding-left:20px;color:var(--txd)">\u2514 '+mpn+'</td>';
         h+='<td style="color:var(--b2)">'+FK(Math.round(mpCA))+'</td>';
