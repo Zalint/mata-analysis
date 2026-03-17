@@ -1847,6 +1847,8 @@ function getProdMapGlobal(catFilter){
     var pdv=pdvList[pi],days=DATA[pdv]||[];
     for(var di=0;di<days.length;di++){
       if(!days[di]||!days[di].prods)continue;
+      var dk=days[di].date?days[di].date.toISOString().slice(0,10):'';
+      var pxB=getPrix(pdv,dk,'bovin'),pxV=getPrix(pdv,dk,'veau'),pxP=getPrix(pdv,dk,'poulet'),pxA=getPrix(pdv,dk,'agneau');
       var pks=Object.keys(days[di].prods);
       for(var ki=0;ki<pks.length;ki++){
         var pn=pks[ki],p=days[di].prods[pn];if(!p)continue;
@@ -1864,11 +1866,11 @@ function getProdMapGlobal(catFilter){
         var ppx=PRIX_PRODUIT[pn];
         if(ppx!==undefined){var qx=theo||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
         else if(catLo==='bovin'){
-          if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*(PRIX.veau||4000);map[pn].px=PRIX.veau||4000;}
-          else{var qb=theo||reel;map[pn].cost+=qb*(PRIX.bovin||3720);map[pn].px=PRIX.bovin||3720;}
+          if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*pxV;map[pn].px=pxV;}
+          else{var qb=theo||reel;map[pn].cost+=qb*pxB;map[pn].px=pxB;}
         }
-        else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*(PRIX.poulet||2800);map[pn].px=PRIX.poulet||2800;}
-        else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*(PRIX.agneau||4300);map[pn].px=PRIX.agneau||4300;}
+        else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*pxP;map[pn].px=pxP;}
+        else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*pxA;map[pn].px=pxA;}
         else if(catLo==='poisson'){
           var pc=POISSON_CONFIG[pn];var bpx2=pc?pc.achat:(PRIX.poisson||3000);
           map[pn].cost+=bestV(p)*bpx2;map[pn].px=bpx2;
@@ -1900,6 +1902,8 @@ function getProdMapPdv(pdv,catFilter){
   var days=DATA[pdv]||[];
   for(var di=0;di<days.length;di++){
     if(!days[di]||!days[di].prods)continue;
+    var dk=days[di].date?days[di].date.toISOString().slice(0,10):'';
+    var pxB=getPrix(pdv,dk,'bovin'),pxV=getPrix(pdv,dk,'veau'),pxP=getPrix(pdv,dk,'poulet'),pxA=getPrix(pdv,dk,'agneau');
     var pks=Object.keys(days[di].prods);
     for(var ki=0;ki<pks.length;ki++){
       var pn=pks[ki],p=days[di].prods[pn];if(!p)continue;
@@ -1916,11 +1920,11 @@ function getProdMapPdv(pdv,catFilter){
       var ppx=PRIX_PRODUIT[pn];
       if(ppx!==undefined){var qx=theo||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
       else if(catLo==='bovin'){
-        if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*(PRIX.veau||4000);map[pn].px=PRIX.veau||4000;}
-        else{var qb=theo||reel;map[pn].cost+=qb*(PRIX.bovin||3720);map[pn].px=PRIX.bovin||3720;}
+        if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*pxV;map[pn].px=pxV;}
+        else{var qb=theo||reel;map[pn].cost+=qb*pxB;map[pn].px=pxB;}
       }
-      else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*(PRIX.poulet||2800);map[pn].px=PRIX.poulet||2800;}
-      else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*(PRIX.agneau||4300);map[pn].px=PRIX.agneau||4300;}
+      else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*pxP;map[pn].px=pxP;}
+      else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*pxA;map[pn].px=pxA;}
       else if(catLo==='poisson'){
         var pc=POISSON_CONFIG[pn];var bpx2=pc?pc.achat:(PRIX.poisson||3000);
         map[pn].cost+=bestV(p)*bpx2;map[pn].px=bpx2;
