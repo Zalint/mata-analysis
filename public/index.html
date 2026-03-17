@@ -2281,10 +2281,12 @@ function renderPdv(el,pdv,ck){
 
     var mpNames=Object.keys(mpMap).sort(function(a,b){return (mpMap[b].reelF||0)-(mpMap[a].reelF||0);});
     /* filter out empty products */
-    mpNames=mpNames.filter(function(n){return mpMap[n].reelF>0||mpMap[n].cost>0;});
+    mpNames=mpNames.filter(function(n){return mpMap[n].reelF>0||mpMap[n].cost!==0||mpMap[n].theo!==0||mpMap[n].reel>0;});
     if(mpNames.length){
+      /* totals computed over ALL products in mpMap (incl. those with negative cost) */
       var mpTotCA=0,mpTotCost=0;
-      for(var mpi=0;mpi<mpNames.length;mpi++){mpTotCA+=mpMap[mpNames[mpi]].reelF||0;mpTotCost+=mpMap[mpNames[mpi]].cost||0;}
+      var mpAllNames=Object.keys(mpMap);
+      for(var mpi0=0;mpi0<mpAllNames.length;mpi0++){mpTotCA+=mpMap[mpAllNames[mpi0]].reelF||0;mpTotCost+=mpMap[mpAllNames[mpi0]].cost||0;}
       var mpTotMarge=mpTotCA-mpTotCost;
       var mpTotCol=mpTotMarge>=0?'var(--t)':'var(--r2)';
       var mpId='marge-pdv-'+pdv.replace(/\s/g,'_')+'-'+ck;
