@@ -549,7 +549,7 @@ function calcCostDay(day,pdv){
       if(catLo==='bovin'){detail.bovin.qty+=qx;detail.bovin.cost+=cost_i;}
       else if(catLo==='ovin'||catLo==='caprin'){detail.agneau.qty+=qx;detail.agneau.cost+=cost_i;}
       else if(catLo==='volaille'){detail.poulet.qty+=qx;detail.poulet.cost+=cost_i;}
-      else if(catLo==='poisson'){detail.poisson.qty+=qx;detail.poisson.cost+=cost_i;}
+      else if(catLo==='poisson'&&!POISSON_VENTES){detail.poisson.qty+=qx;detail.poisson.cost+=cost_i;}
     }
     else if(catLo==='bovin'){
       var qb=pt||pr2;
@@ -559,8 +559,10 @@ function calcCostDay(day,pdv){
     else if(catLo==='volaille'){var qv=pt||pr2;detail.poulet.qty+=qv;detail.poulet.cost+=qv*detail.poulet.px;}
     else if(catLo==='ovin'||catLo==='caprin'){var qo=pt||pr2;detail.agneau.qty+=qo;detail.agneau.cost+=qo*detail.agneau.px;}
     else if(catLo==='poisson'){
-      /* Exclude generic "Poisson" product — already counted via POISSON_CONFIG entries (same reason as getSellStats line 433) */
+      /* Exclude generic "Poisson" product — already counted via POISSON_CONFIG entries */
       if(pNames[i]==='Poisson')continue;
+      /* If POISSON_VENTES is loaded, poisson cost is accounted via that source — skip day.prods to avoid double-count */
+      if(POISSON_VENTES)continue;
       var pc=POISSON_CONFIG[pNames[i]];
       var ppx=pc?pc.achat:detail.poisson.px;
       var qty=bestV(p);
@@ -2088,6 +2090,19 @@ function renderAll(el,ck){
       var ccd=calcCostDay(cday,cpdv);
       var cdk=cfg.costKeys;
       for(var cki=0;cki<cdk.length;cki++){if(ccd.detail&&ccd.detail[cdk[cki]]){cpdvCost+=ccd.detail[cdk[cki]].cost;cpdvDet[cdk[cki]].qty+=ccd.detail[cdk[cki]].qty;cpdvDet[cdk[cki]].cost+=ccd.detail[cdk[cki]].cost;cDet[cdk[cki]].qty+=ccd.detail[cdk[cki]].qty;cDet[cdk[cki]].cost+=ccd.detail[cdk[cki]].cost;}}
+    }
+    /* Poisson: if POISSON_VENTES is loaded, add CA+cost from that source (calcCostDay skips day.prods poisson in this case) */
+    if(ck==='poisson'&&POISSON_VENTES&&POISSON_VENTES[cpdv]){
+      var _pvp=POISSON_VENTES[cpdv];
+      Object.keys(_pvp).forEach(function(pvn){
+        var pvd=_pvp[pvn];
+        cpdvCA+=pvd.fcfa||0;
+        var _pcCfg=POISSON_CONFIG[pvn];
+        var _pvCost=(pvd.qty||0)*(_pcCfg?_pcCfg.achat:(PRIX.poisson||3000));
+        cpdvCost+=_pvCost;
+        cpdvDet.poisson.qty+=pvd.qty||0;cpdvDet.poisson.cost+=_pvCost;
+        cDet.poisson.qty+=pvd.qty||0;cDet.poisson.cost+=_pvCost;
+      });
     }
     cCA+=cpdvCA;cCost+=cpdvCost;
     cRows.push({pdv:cpdv,ca:cpdvCA,cost:cpdvCost,mb:cpdvCA-cpdvCost,n:cdays.length,det:cpdvDet});
