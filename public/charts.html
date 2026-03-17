@@ -81,10 +81,10 @@
     .panel-fs-btn{position:absolute;top:6px;right:8px;background:transparent;border:1px solid #333;color:#666;font-family:inherit;font-size:9px;padding:2px 8px;cursor:pointer;letter-spacing:.5px;opacity:0;transition:opacity .15s,color .15s,border-color .15s;z-index:5}
     .panel:hover .panel-fs-btn{opacity:1}
     .panel-fs-btn:hover{color:#FF6B00;border-color:#FF6B00}
-    .panel.fullscreen{position:fixed!important;top:0;left:0;right:0;bottom:0;z-index:500;padding:24px 32px;overflow:auto;border:none;margin:0;width:100vw;height:100vh}
-    .panel.fullscreen .panel-title{font-size:11px;margin-bottom:20px}
+    .panel.fullscreen{position:fixed!important;top:0;left:0;right:0;bottom:0;z-index:500;padding:24px 32px;overflow:hidden;border:none;margin:0;width:100vw;height:100vh;display:flex;flex-direction:column}
+    .panel.fullscreen .panel-title{font-size:11px;margin-bottom:12px;flex-shrink:0}
     .panel.fullscreen .panel-fs-btn{opacity:1;top:12px;right:16px;font-size:10px;padding:4px 12px}
-    .panel.fullscreen canvas{min-height:80vh}
+    .panel.fullscreen canvas{flex:1;min-height:0}
     body.has-fullscreen{overflow:hidden}
 
     /* ── BOTTOM BAR ── */
@@ -484,22 +484,28 @@ function toggleFullscreen(panel){
     document.body.classList.remove('has-fullscreen');
     var btn=panel.querySelector('.panel-fs-btn');
     if(btn)btn.textContent='⛶ EXPAND';
+    // restore maintainAspectRatio
+    panel.querySelectorAll('canvas').forEach(function(cv){
+      if(CH[cv.id]){CH[cv.id].options.maintainAspectRatio=true;CH[cv.id].resize();}
+    });
   }else{
     // close any other fullscreen panel first
     document.querySelectorAll('.panel.fullscreen').forEach(function(p){
       p.classList.remove('fullscreen');
       var b=p.querySelector('.panel-fs-btn');if(b)b.textContent='⛶ EXPAND';
+      p.querySelectorAll('canvas').forEach(function(cv){
+        if(CH[cv.id]){CH[cv.id].options.maintainAspectRatio=true;CH[cv.id].resize();}
+      });
     });
     panel.classList.add('fullscreen');
     document.body.classList.add('has-fullscreen');
     var btn=panel.querySelector('.panel-fs-btn');
     if(btn)btn.textContent='✕ CLOSE';
+    // set maintainAspectRatio false so chart fills fullscreen
+    panel.querySelectorAll('canvas').forEach(function(cv){
+      if(CH[cv.id]){CH[cv.id].options.maintainAspectRatio=false;CH[cv.id].resize();}
+    });
   }
-  // resize all Chart.js instances in this panel
-  panel.querySelectorAll('canvas').forEach(function(cv){
-    var cid=cv.id;
-    if(CH[cid])CH[cid].resize();
-  });
 }
 // ESC to close fullscreen
 document.addEventListener('keydown',function(e){
