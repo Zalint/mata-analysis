@@ -2270,6 +2270,12 @@ function renderPdv(el,pdv,ck){
   if(_margeCatFilter[ck]){
     var mpMap=getProdMapPdv(pdv,_margeCatFilter[ck]);
 
+    if(ck==='bovin'){
+      var _tot=0,_rows={};
+      Object.keys(mpMap).forEach(function(pn){_tot+=mpMap[pn].cost||0;_rows[pn]={theo:mpMap[pn].theo,reel:mpMap[pn].reel,cost:Math.round(mpMap[pn].cost||0),px:mpMap[pn].px};});
+      console.log('[MPM] total='+Math.round(_tot)+' getPrix(bovin,2026-03-01)='+getPrix(pdv,'2026-03-01','bovin')+' PRIX.bovin='+PRIX.bovin);
+      console.table(_rows);
+    }
 
     var mpNames=Object.keys(mpMap).sort(function(a,b){return (mpMap[b].reelF||0)-(mpMap[a].reelF||0);});
     /* filter out empty products */
