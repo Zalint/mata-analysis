@@ -2270,24 +2270,6 @@ function renderPdv(el,pdv,ck){
   if(_margeCatFilter[ck]){
     var mpMap=getProdMapPdv(pdv,_margeCatFilter[ck]);
 
-    /* DEBUG prix par jour */
-    if(ck==='bovin'){
-      var _dbgDays=DATA[pdv]||[],_dbgPrix={},_dbgCostCd=0,_dbgCostMp=0;
-      for(var _di=0;_di<_dbgDays.length;_di++){
-        var _dd=_dbgDays[_di];if(!_dd||!_dd.date)continue;
-        var _dk=_dd.date.toISOString().slice(0,10);
-        var _pb=getPrix(pdv,_dk,'bovin'),_pv=getPrix(pdv,_dk,'veau');
-        _dbgPrix[_dk]={bovin:_pb,veau:_pv};
-        var _cd=calcCostDay(_dd,pdv);
-        _dbgCostCd+=_cd.detail.bovin.cost+_cd.detail.veau.cost;
-      }
-      Object.keys(mpMap).forEach(function(pn){_dbgCostMp+=mpMap[pn].cost||0;});
-      console.log('[PRIX DBG] pdv='+pdv+' calcCostDay bovin+veau='+Math.round(_dbgCostCd)+' getProdMapPdv='+Math.round(_dbgCostMp));
-      console.log('[PRIX DBG] prix par jour:',_dbgPrix);
-      console.log('[PRIX DBG] PRIX_PDV['+pdv+']=',PRIX_PDV[pdv]);
-      console.log('[PRIX DBG] PRIX_DATE['+pdv+']=',PRIX_DATE[pdv]);
-      console.log('[PRIX DBG] ABATS_MODE='+ABATS_MODE+' PRIX_AVEC_ABATS=',PRIX_AVEC_ABATS);
-    }
 
     var mpNames=Object.keys(mpMap).sort(function(a,b){return (mpMap[b].reelF||0)-(mpMap[a].reelF||0);});
     /* filter out empty products */
