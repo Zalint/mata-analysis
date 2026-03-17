@@ -8,7 +8,14 @@ try {
     const m = line.match(/^([^#][^=]*)=(.+)$/);
     if (m && !process.env[m[1].trim()]) process.env[m[1].trim()] = m[2].trim();
   });
-} catch(e) {}
+} catch(e) {
+  console.error('\x1b[31m╔══════════════════════════════════════════════════════╗');
+  console.error('║  ⚠  .env file not found!                             ║');
+  console.error('║  API calls to external services will fail (500).      ║');
+  console.error('║  Copy .env from main repo:                            ║');
+  console.error('║  copy C:\\Mata\\mata-server\\.env <this-worktree>\\.env   ║');
+  console.error('╚══════════════════════════════════════════════════════════╝\x1b[0m');
+}
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY || '';
