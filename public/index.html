@@ -1880,9 +1880,8 @@ function getProdMapGlobal(catFilter){
         var ppx=PRIX_PRODUIT[pn];
         if(ppx!==undefined){var qx=theo||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
         else if(catLo==='bovin'){
-          var qb=theo||reel;
-          if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=qb*(PRIX.veau||4000);map[pn].px=PRIX.veau||4000;}
-          else{map[pn].cost+=qb*(PRIX.bovin||3720);map[pn].px=PRIX.bovin||3720;}
+          if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*(PRIX.veau||4000);map[pn].px=PRIX.veau||4000;}
+          else{var qb=theo||reel;map[pn].cost+=qb*(PRIX.bovin||3720);map[pn].px=PRIX.bovin||3720;}
         }
         else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*(PRIX.poulet||2800);map[pn].px=PRIX.poulet||2800;}
         else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*(PRIX.agneau||4300);map[pn].px=PRIX.agneau||4300;}
@@ -1933,9 +1932,8 @@ function getProdMapPdv(pdv,catFilter){
       var ppx=PRIX_PRODUIT[pn];
       if(ppx!==undefined){var qx=theo||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
       else if(catLo==='bovin'){
-        var qb=theo||reel;
-        if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=qb*(PRIX.veau||4000);map[pn].px=PRIX.veau||4000;}
-        else{map[pn].cost+=qb*(PRIX.bovin||3720);map[pn].px=PRIX.bovin||3720;}
+        if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*(PRIX.veau||4000);map[pn].px=PRIX.veau||4000;}
+        else{var qb=theo||reel;map[pn].cost+=qb*(PRIX.bovin||3720);map[pn].px=PRIX.bovin||3720;}
       }
       else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*(PRIX.poulet||2800);map[pn].px=PRIX.poulet||2800;}
       else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*(PRIX.agneau||4300);map[pn].px=PRIX.agneau||4300;}
