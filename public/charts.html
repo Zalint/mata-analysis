@@ -41,19 +41,51 @@
     #kpiRow{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#1a1a1a;border-bottom:2px solid #1a1a1a}
     .kpi{background:#050505;padding:16px 20px}
     .kpi-lbl{font-size:7px;color:#666;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-    .kpi-val{font-size:24px;font-weight:800;color:#FF6B00;letter-spacing:-0.5px}
+    .kpi-val{font-size:18px;font-weight:800;color:#FF6B00;letter-spacing:-0.5px}
     .kpi-val.pos{color:#22C55E}
     .kpi-val.neg{color:#EF4444}
     .kpi-sub{font-size:9px;color:#555;margin-top:5px}
 
     /* ── CHARTS GRID ── */
     #chartsArea{padding:16px;display:flex;flex-direction:column;gap:16px}
-    .panel{border:1px solid #1a1a1a;background:#030303;padding:16px 18px}
+    .panel{border:1px solid #1a1a1a;background:#030303;padding:16px 18px;position:relative}
     .panel-title{font-size:8px;font-weight:800;color:#FF6B00;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #111}
     .panel-grid{display:grid;gap:16px}
     .panel-grid.col2{grid-template-columns:1fr 1fr}
     .panel-grid.col3{grid-template-columns:1fr 1fr 1fr}
     canvas{display:block;width:100%!important}
+
+    /* ── TAB BAR ── */
+    #tabbar{display:none;border-bottom:2px solid #1a1a1a;background:#030303}
+    .tab-btn{padding:8px 20px;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#555;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:color .15s,border-color .15s;margin-bottom:-2px}
+    .tab-btn:hover{color:#999}
+    .tab-btn.active{color:#FF6B00;border-bottom-color:#FF6B00}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+
+    /* ── CHART TOOLBAR ── */
+    .chart-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+    .chart-toolbar .tb-btn{background:#111;border:1px solid #333;color:#999;font-family:inherit;font-size:9px;padding:3px 10px;cursor:pointer;letter-spacing:.5px;transition:all .15s}
+    .chart-toolbar .tb-btn:hover{border-color:#FF6B00;color:#FF6B00}
+    .chart-toolbar .tb-btn.active{background:#FF6B00;border-color:#FF6B00;color:#000;font-weight:700}
+    .chart-toolbar .tb-sep{width:1px;height:16px;background:#333;margin:0 4px}
+
+    /* ── STATS TABLE ── */
+    .stats-tbl{width:100%;border-collapse:collapse;margin-top:16px;font-size:10px}
+    .stats-tbl th{text-align:left;font-size:7px;color:#666;letter-spacing:1.5px;text-transform:uppercase;padding:6px 10px;border-bottom:1px solid #1a1a1a}
+    .stats-tbl td{padding:6px 10px;border-bottom:1px solid #0a0a0a;color:#bbb;font-variant-numeric:tabular-nums}
+    .stats-tbl tr:hover td{background:#0a0a0a}
+    .stats-tbl .series-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+    /* ── FULLSCREEN PANEL ── */
+    .panel-fs-btn{position:absolute;top:6px;right:8px;background:transparent;border:1px solid #333;color:#666;font-family:inherit;font-size:9px;padding:2px 8px;cursor:pointer;letter-spacing:.5px;opacity:0;transition:opacity .15s,color .15s,border-color .15s;z-index:5}
+    .panel:hover .panel-fs-btn{opacity:1}
+    .panel-fs-btn:hover{color:#FF6B00;border-color:#FF6B00}
+    .panel.fullscreen{position:fixed!important;top:0;left:0;right:0;bottom:0;z-index:500;padding:24px 32px;overflow:hidden;border:none;margin:0;width:100vw;height:100vh;display:flex;flex-direction:column}
+    .panel.fullscreen .panel-title{font-size:14px;margin-bottom:12px;flex-shrink:0}
+    .panel.fullscreen .panel-fs-btn{opacity:1;top:12px;right:16px;font-size:10px;padding:4px 12px}
+    .panel.fullscreen canvas{flex:1;min-height:0}
+    body.has-fullscreen{overflow:hidden}
 
     /* ── BOTTOM BAR ── */
     #bottombar{position:fixed;bottom:0;left:0;right:0;height:30px;background:#000;border-top:1px solid #1a1a1a;display:flex;align-items:center;padding:0 16px;gap:0}
@@ -94,6 +126,12 @@
   <a href="/">← Retour à l'analyse</a>
 </div>
 
+<div id="tabbar">
+  <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">Vue d'ensemble</button>
+  <button class="tab-btn" data-tab="prix-achat" onclick="switchTab('prix-achat')">Prix d'achat Boeuf / Veau</button>
+</div>
+
+<div id="tab-overview" class="tab-content active">
 <div id="kpiRow">
   <div class="kpi"><div class="kpi-lbl">CA Total</div><div class="kpi-val" id="kCA">–</div><div class="kpi-sub" id="kCASub"></div></div>
   <div class="kpi"><div class="kpi-lbl">Coût achat</div><div class="kpi-val" id="kCost">–</div><div class="kpi-sub" id="kCostSub"></div></div>
@@ -132,11 +170,37 @@
     <canvas id="cProd" height="80"></canvas>
   </div>
 </div>
+</div><!-- /tab-overview -->
+
+<div id="tab-prix-achat" class="tab-content" style="padding:16px">
+  <div class="panel">
+    <div class="panel-title">Prix d'achat journalier — Boeuf &amp; Veau (F/kg)</div>
+    <div class="chart-toolbar">
+      <button class="tb-btn active" onclick="setPrixMode('line')">Courbe</button>
+      <button class="tb-btn" onclick="setPrixMode('bar')">Histogramme</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="zoomPrix(-10)">−</button>
+      <span id="zoomLabel" style="font-size:9px;color:#666;min-width:30px;text-align:center">40%</span>
+      <button class="tb-btn" onclick="zoomPrix(+10)">+</button>
+    </div>
+    <div id="prixChartWrap" style="height:40vh;position:relative">
+      <canvas id="cPrixAchat"></canvas>
+    </div>
+  </div>
+  <div id="prixAchatStats" class="panel" style="display:none">
+    <div class="panel-title">Statistiques</div>
+    <div id="statsTableWrap"></div>
+  </div>
+  <div id="prixAchatNoData" style="display:none;text-align:center;padding:40px;color:#555;font-size:11px">
+    Aucune donnée d'achats boeuf/veau disponible pour cette période.
+  </div>
+</div>
 
 <div id="bottombar">
   <div class="fkey"><kbd>F1</kbd> Analysis</div>
   <div class="fkey"><kbd>F2</kbd> Réconciliation</div>
   <div class="fkey"><kbd>F3</kbd> Terminal</div>
+  <div class="fkey"><kbd>F4</kbd> Prix Achat</div>
   <div id="bStatus">MATA GROUP SA</div>
 </div>
 
@@ -154,14 +218,16 @@ document.addEventListener('keydown',e=>{
   if(e.key==='F1'){e.preventDefault();location.href='/';}
   if(e.key==='F2'){e.preventDefault();location.href='/reconciliation_matix_mata_bictorys.html';}
   if(e.key==='F3'){e.preventDefault();location.href='/landing.html';}
+  if(e.key==='F4'){e.preventDefault();switchTab('prix-achat');}
 });
 
 // ── CHART.JS DEFAULTS ────────────────────────────────────────────────────────
-Chart.defaults.color='#666';
+Chart.defaults.color='#999';
 Chart.defaults.borderColor='#141414';
 Chart.defaults.font.family="'JetBrains Mono',monospace";
-Chart.defaults.font.size=9;
-const TICK={color:'#666'};
+Chart.defaults.font.size=12;
+Chart.defaults.font.weight='bold';
+const TICK={color:'#999',font:{size:12,weight:'bold',family:"'JetBrains Mono',monospace"}};
 const GRID={color:'#111'};
 const TIP={
   backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,
@@ -169,7 +235,7 @@ const TIP={
   callbacks:{label:ctx=>ctx.dataset.label+': '+fmtK(Math.round(ctx.parsed.y??ctx.parsed.x))+'F'}
 };
 const TIP_H={...TIP,callbacks:{label:ctx=>ctx.dataset.label+': '+fmtK(Math.round(ctx.parsed.x))+'F'}};
-const LEG={display:true,labels:{color:'#777',boxWidth:8,padding:14,font:{size:9}}};
+const LEG={display:true,labels:{color:'#aaa',boxWidth:10,padding:14,font:{size:11,weight:'bold'}}};
 
 // ── PALETTE ──────────────────────────────────────────────────────────────────
 const CAT_COL={
@@ -267,18 +333,19 @@ function render(){
 
   // ── KPIs — use exact Analysis totals ────────────────────────────────────────
   const T=RAW.totals;
-  document.getElementById('kCA').textContent=fmtK(T.ca)+' F';
+  function fmtN(v){return Math.round(v).toLocaleString('fr-FR');}
+  document.getElementById('kCA').textContent=fmtN(T.ca)+' F';
   document.getElementById('kCASub').textContent=dates.length+' jours';
-  document.getElementById('kCost').textContent=fmtK(T.cost)+' F';
+  document.getElementById('kCost').textContent=fmtN(T.cost)+' F';
   document.getElementById('kCostSub').textContent=T.ca>0?fmtP(T.cost/T.ca)+' du CA':'–';
   const mbEl=document.getElementById('kMrg');
-  mbEl.textContent=fmtK(T.marginBrute)+' F';
+  mbEl.textContent=fmtN(T.marginBrute)+' F';
   mbEl.className='kpi-val'+(T.marginBrute>=0?' pos':' neg');
   document.getElementById('kMrgSub').textContent=T.ca>0?fmtP(T.marginBrute/T.ca)+' du CA':'–';
-  document.getElementById('kChg').textContent=fmtK(T.chg)+' F';
+  document.getElementById('kChg').textContent=fmtN(T.chg)+' F';
   document.getElementById('kChgSub').textContent=T.ca>0?fmtP(T.chg/T.ca)+' du CA':'–';
   const mnEl=document.getElementById('kMrgNet');
-  mnEl.textContent=fmtK(T.marginNet)+' F';
+  mnEl.textContent=fmtN(T.marginNet)+' F';
   mnEl.className='kpi-val'+(T.marginNet>=0?' pos':' neg');
   document.getElementById('kMrgNetSub').textContent=T.ca>0?fmtP(T.marginNet/T.ca)+' du CA':'–';
 
@@ -342,7 +409,7 @@ function render(){
     options:{
       responsive:true,animation:false,
       plugins:{
-        legend:{position:'right',labels:{color:'#777',boxWidth:8,padding:12,font:{size:9}}},
+        legend:{position:'right',labels:{color:'#aaa',boxWidth:10,padding:12,font:{size:11,weight:'bold'}}},
         tooltip:{backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
           callbacks:{label:ctx=>ctx.label+': '+fmtK(Math.round(ctx.parsed))+'F ('+fmtP(ctx.parsed/(ca||1))+')'}}
       }
@@ -405,10 +472,247 @@ function render(){
       plugins:{legend:{display:false},tooltip:{...TIP_H}},
       scales:{
         x:{grid:GRID,ticks:{...TICK,callback:v=>fmtK(v)}},
-        y:{grid:{color:'#0a0a0a'},ticks:{...TICK,font:{size:9}}},
+        y:{grid:{color:'#0a0a0a'},ticks:{...TICK}},
       }
     }
   });
+}
+
+// ── FULLSCREEN PANEL ────────────────────────────────────────────────────────
+function setChartFS(chart,fs){
+  chart.options.maintainAspectRatio=!fs;
+  var sz=fs?16:12, clr=fs?'#ccc':'#999', lsz=fs?14:11, lclr=fs?'#bbb':'#aaa';
+  // update all scale ticks
+  Object.keys(chart.options.scales||{}).forEach(function(k){
+    var s=chart.options.scales[k];
+    if(!s.ticks)s.ticks={};
+    s.ticks.color=clr;
+    s.ticks.font={size:sz,weight:'bold',family:"'JetBrains Mono',monospace"};
+    if(s.title){s.title.color=fs?'#bbb':'#777';s.title.font={size:fs?14:11,weight:'bold',family:"'JetBrains Mono',monospace"};}
+  });
+  // update legend
+  if(chart.options.plugins&&chart.options.plugins.legend&&chart.options.plugins.legend.labels){
+    chart.options.plugins.legend.labels.color=lclr;
+    chart.options.plugins.legend.labels.font={size:lsz,weight:'bold'};
+  }
+  chart.resize();
+  chart.update('none');
+}
+function toggleFullscreen(panel){
+  var isFS=panel.classList.contains('fullscreen');
+  if(isFS){
+    panel.classList.remove('fullscreen');
+    document.body.classList.remove('has-fullscreen');
+    var btn=panel.querySelector('.panel-fs-btn');
+    if(btn)btn.textContent='⛶ EXPAND';
+    panel.querySelectorAll('canvas').forEach(function(cv){
+      if(CH[cv.id])setChartFS(CH[cv.id],false);
+    });
+  }else{
+    // close any other fullscreen panel first
+    document.querySelectorAll('.panel.fullscreen').forEach(function(p){
+      p.classList.remove('fullscreen');
+      var b=p.querySelector('.panel-fs-btn');if(b)b.textContent='⛶ EXPAND';
+      p.querySelectorAll('canvas').forEach(function(cv){
+        if(CH[cv.id])setChartFS(CH[cv.id],false);
+      });
+    });
+    panel.classList.add('fullscreen');
+    document.body.classList.add('has-fullscreen');
+    var btn=panel.querySelector('.panel-fs-btn');
+    if(btn)btn.textContent='✕ CLOSE';
+    panel.querySelectorAll('canvas').forEach(function(cv){
+      if(CH[cv.id])setChartFS(CH[cv.id],true);
+    });
+  }
+}
+// ESC to close fullscreen
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fs=document.querySelector('.panel.fullscreen');
+    if(fs)toggleFullscreen(fs);
+  }
+});
+
+// ── TAB SWITCH ──────────────────────────────────────────────────────────────
+function switchTab(tabId){
+  document.querySelectorAll('.tab-btn').forEach(function(btn){btn.classList.toggle('active',btn.dataset.tab===tabId);});
+  document.querySelectorAll('.tab-content').forEach(function(tc){tc.classList.toggle('active',tc.id==='tab-'+tabId);});
+  document.getElementById('filterbar').style.display=(tabId==='overview')?'flex':'none';
+  if(tabId==='prix-achat'&&!PRIX_DATA){renderPrixAchat();}
+}
+
+// ── PRIX ACHAT CHART ────────────────────────────────────────────────────────
+var PRIX_MODE='line';
+var PRIX_ZOOM=40; // vh %
+var PRIX_DATA=null; // {dates,boeufSans,boeufAvec,veauSans,veauAvec}
+
+function zoomPrix(delta){
+  PRIX_ZOOM=Math.max(20,Math.min(50,PRIX_ZOOM+delta));
+  document.getElementById('prixChartWrap').style.height=PRIX_ZOOM+'vh';
+  document.getElementById('zoomLabel').textContent=PRIX_ZOOM+'%';
+  if(PRIX_DATA)drawPrixChart();
+}
+function setPrixMode(mode){
+  PRIX_MODE=mode;
+  document.querySelectorAll('#tab-prix-achat .chart-toolbar .tb-btn').forEach(function(b,i){
+    if(i<2)b.classList.toggle('active',(mode==='line'&&i===0)||(mode==='bar'&&i===1));
+  });
+  if(PRIX_DATA)drawPrixChart();
+}
+
+function drawPrixChart(){
+  if(!PRIX_DATA)return;
+  var d=PRIX_DATA,isBar=PRIX_MODE==='bar';
+  dc('cPrixAchat');
+  var datasets=isBar?[
+    {label:'Boeuf sans abats',data:d.boeufSans,backgroundColor:'#FF6B00cc',borderColor:'#FF6B00',borderWidth:1},
+    {label:'Boeuf avec abats',data:d.boeufAvec,backgroundColor:'#FF6B0055',borderColor:'#FF6B0088',borderWidth:1},
+    {label:'Veau sans abats',data:d.veauSans,backgroundColor:'#FFD700cc',borderColor:'#FFD700',borderWidth:1},
+    {label:'Veau avec abats',data:d.veauAvec,backgroundColor:'#FFD70055',borderColor:'#FFD70088',borderWidth:1},
+  ]:[
+    {label:'Boeuf sans abats',data:d.boeufSans,borderColor:'#FF6B00',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#FF6B00',tension:0.2,spanGaps:true},
+    {label:'Boeuf avec abats',data:d.boeufAvec,borderColor:'#FF6B0088',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:3,pointBackgroundColor:'#FF6B0088',tension:0.2,spanGaps:true},
+    {label:'Veau sans abats',data:d.veauSans,borderColor:'#FFD700',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#FFD700',tension:0.2,spanGaps:true},
+    {label:'Veau avec abats',data:d.veauAvec,borderColor:'#FFD70088',backgroundColor:'transparent',borderWidth:2,borderDash:[5,3],pointRadius:3,pointBackgroundColor:'#FFD70088',tension:0.2,spanGaps:true},
+  ];
+  CH['cPrixAchat']=new Chart(document.getElementById('cPrixAchat'),{
+    type:isBar?'bar':'line',
+    data:{labels:d.dates,datasets:datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:LEG,tooltip:{backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
+        callbacks:{label:function(ctx){return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString('fr-FR')+' F/kg';}}}},
+      scales:{
+        x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
+        y:{beginAtZero:false,grid:GRID,ticks:{...TICK,callback:function(v){return Math.round(v).toLocaleString('fr-FR');}},
+          title:{display:true,text:'F/kg',color:'#999',font:{size:12,weight:'bold',family:"'JetBrains Mono',monospace"}}}
+      }
+    }
+  });
+}
+
+function renderPrixAchat(){
+  var noDataEl=document.getElementById('prixAchatNoData');
+  var statsEl=document.getElementById('prixAchatStats');
+  if(!RAW||!RAW.achatsBoeuf||!RAW.achatsBoeuf.length){noDataEl.style.display='block';return;}
+
+  // Group by date + bete
+  var byDateBete={};
+  RAW.achatsBoeuf.forEach(function(a){
+    if(!a.date||!a.bete)return;
+    var dk=String(a.date).slice(0,10);
+    var b=String(a.bete).toLowerCase();
+    if(b!=='boeuf'&&b!=='veau')return;
+    if(!byDateBete[dk])byDateBete[dk]={};
+    if(!byDateBete[dk][b])byDateBete[dk][b]={sumPx:0,sumKg:0,sumAbats:0};
+    var kg=a.nbr_kg||0,px=a.prix_sans_abats||0;
+    byDateBete[dk][b].sumPx+=px*kg;
+    byDateBete[dk][b].sumKg+=kg;
+    byDateBete[dk][b].sumAbats+=(a.abats||0);
+  });
+
+  var dates=Object.keys(byDateBete).sort();
+  if(!dates.length){noDataEl.style.display='block';return;}
+  noDataEl.style.display='none';
+
+  // Build 4 data arrays
+  var boeufSans=[],boeufAvec=[],veauSans=[],veauAvec=[];
+  dates.forEach(function(dk){
+    var day=byDateBete[dk];
+    if(day.boeuf&&day.boeuf.sumKg>0){
+      var ps=day.boeuf.sumPx/day.boeuf.sumKg;
+      var ab=day.boeuf.sumAbats/day.boeuf.sumKg;
+      boeufSans.push(Math.round(ps));
+      boeufAvec.push(Math.round(ps-ab));
+    }else{boeufSans.push(null);boeufAvec.push(null);}
+    if(day.veau&&day.veau.sumKg>0){
+      var psv=day.veau.sumPx/day.veau.sumKg;
+      var abv=day.veau.sumAbats/day.veau.sumKg;
+      veauSans.push(Math.round(psv));
+      veauAvec.push(Math.round(psv-abv));
+    }else{veauSans.push(null);veauAvec.push(null);}
+  });
+
+  // Accumulate totals per bete
+  var totals={boeuf:{count:0,kg:0,cost:0,abats:0},veau:{count:0,kg:0,cost:0,abats:0}};
+  RAW.achatsBoeuf.forEach(function(a){
+    if(!a.bete)return;
+    var b=String(a.bete).toLowerCase();
+    if(b!=='boeuf'&&b!=='veau')return;
+    var kg=a.nbr_kg||0,px=a.prix_sans_abats||0;
+    totals[b].count++;
+    totals[b].kg+=kg;
+    totals[b].cost+=px*kg;
+    totals[b].abats+=(a.abats||0);
+  });
+
+  PRIX_DATA={dates:dates,boeufSans:boeufSans,boeufAvec:boeufAvec,veauSans:veauSans,veauAvec:veauAvec};
+  drawPrixChart();
+
+  // ── STATS TABLE ──
+  var series=[
+    {name:'Boeuf sans abats',color:'#FF6B00',data:boeufSans},
+    {name:'Boeuf avec abats',color:'#FF6B0088',data:boeufAvec},
+    {name:'Veau sans abats',color:'#FFD700',data:veauSans},
+    {name:'Veau avec abats',color:'#FFD70088',data:veauAvec},
+  ];
+  function fmtFull(v){return Math.round(v).toLocaleString('fr-FR');}
+  function calcStats(arr){
+    var vals=arr.filter(function(v){return v!==null&&v!==undefined;});
+    if(!vals.length)return null;
+    var n=vals.length;
+    var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals);
+    var sum=vals.reduce(function(s,v){return s+v;},0);
+    var avg=sum/n;
+    var sorted=vals.slice().sort(function(a,b){return a-b;});
+    var med=n%2===1?sorted[Math.floor(n/2)]:(sorted[n/2-1]+sorted[n/2])/2;
+    var variance=vals.reduce(function(s,v){return s+(v-avg)*(v-avg);},0)/n;
+    var stddev=Math.sqrt(variance);
+    return{min:Math.round(mn),max:Math.round(mx),avg:Math.round(avg),med:Math.round(med),vol:Math.round(stddev),amp:Math.round(mx-mn),n:n};
+  }
+  var hasStats=false;
+  var html='<table class="stats-tbl"><thead><tr><th>Série</th><th>Jours</th><th>Min</th><th>Max</th><th>Moyenne</th><th>Médiane</th><th>Volatilité (σ)</th><th>Amplitude</th></tr></thead><tbody>';
+  series.forEach(function(s){
+    var st=calcStats(s.data);
+    if(!st)return;
+    hasStats=true;
+    html+='<tr><td><span class="series-dot" style="background:'+s.color+'"></span>'+s.name+'</td>';
+    html+='<td>'+st.n+'</td><td>'+fmtFull(st.min)+' F/kg</td><td>'+fmtFull(st.max)+' F/kg</td>';
+    html+='<td>'+fmtFull(st.avg)+' F/kg</td><td>'+fmtFull(st.med)+' F/kg</td>';
+    html+='<td>'+fmtFull(st.vol)+' F/kg</td><td>'+fmtFull(st.amp)+' F/kg</td></tr>';
+  });
+  html+='</tbody></table>';
+  // ── SUMMARY TABLE ──
+  html+='<table class="stats-tbl" style="margin-top:24px"><thead><tr><th>Bête</th><th>Nb achats</th><th>Total Kg</th><th>Coût total (sans abats)</th><th>Total abats</th><th>Coût total (avec abats)</th></tr></thead><tbody>';
+  ['boeuf','veau'].forEach(function(b){
+    var t=totals[b];
+    if(!t.count)return;
+    hasStats=true;
+    var label=b==='boeuf'?'Boeuf':'Veau';
+    var color=b==='boeuf'?'#FF6B00':'#FFD700';
+    html+='<tr><td><span class="series-dot" style="background:'+color+'"></span>'+label+'</td>';
+    html+='<td>'+t.count+'</td>';
+    html+='<td>'+fmtFull(t.kg)+' kg</td>';
+    html+='<td>'+fmtFull(t.cost)+' F</td>';
+    html+='<td>'+fmtFull(t.abats)+' F</td>';
+    html+='<td>'+fmtFull(t.cost-t.abats)+' F</td></tr>';
+  });
+  var grandKg=totals.boeuf.kg+totals.veau.kg;
+  var grandCost=totals.boeuf.cost+totals.veau.cost;
+  var grandAbats=totals.boeuf.abats+totals.veau.abats;
+  html+='<tr style="border-top:1px solid #333;font-weight:700"><td>TOTAL</td>';
+  html+='<td>'+(totals.boeuf.count+totals.veau.count)+'</td>';
+  html+='<td>'+fmtFull(grandKg)+' kg</td>';
+  html+='<td>'+fmtFull(grandCost)+' F</td>';
+  html+='<td>'+fmtFull(grandAbats)+' F</td>';
+  html+='<td>'+fmtFull(grandCost-grandAbats)+' F</td></tr>';
+  html+='</tbody></table>';
+
+  if(hasStats){
+    statsEl.style.display='block';
+    document.getElementById('statsTableWrap').innerHTML=html;
+  }
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
@@ -428,6 +732,7 @@ function render(){
   noDataEl.style.display='none';
   kpiEl.style.display='grid';
   chartsEl.style.display='flex';
+  document.getElementById('tabbar').style.display='flex';
 
   // Populate filters
   const cats=[...new Set(Object.keys(RAW.byCat))].sort();
@@ -451,6 +756,15 @@ function render(){
   document.getElementById('bStatus').innerHTML=
     '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22C55E;margin-right:6px;vertical-align:middle"></span>DATA LOADED — '+
     new Date(RAW.exportedAt).toLocaleString('fr-FR');
+
+  // Inject fullscreen buttons into overview panels
+  document.querySelectorAll('#tab-overview .panel').forEach(function(panel){
+    var btn=document.createElement('button');
+    btn.className='panel-fs-btn';
+    btn.textContent='⛶ EXPAND';
+    btn.onclick=function(e){e.stopPropagation();toggleFullscreen(panel);};
+    panel.appendChild(btn);
+  });
 
   applyFilter();
 })();

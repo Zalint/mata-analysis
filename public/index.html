@@ -481,6 +481,7 @@ var MAAS_PRIX_OVERRIDE={}; /* {'786071818':{'2026-03-01':{'Boeuf':4100}}} */
 var ABATS_PRODS=['Abats']; /* seul produit abat chez Mata — Foie/Yell/Merguez sont des produits normaux */
 var ABATS_MODE=false; /* when true: use prix_achat_kg (net after abats) + exclude abat CA */
 var PRIX_AVEC_ABATS={bovin:0,veau:0}; /* weighted avg of prix_achat_kg from API */
+var ACHATS_BOEUF_RAW=[]; /* raw achats records from API — for charts price curve */
 var PRIX_REVIENT_MODE=false; /* when true: use prix_revient (abats+peaux) + exclude abat+peaux CA */
 var PRIX_REVIENT={bovin:0,veau:0}; /* = PRIX_AVEC_ABATS − total_peaux_ventes/total_kg */
 
@@ -1446,6 +1447,7 @@ async function launchApiAnalysis(){
     var boeufTotPx=0,boeufTotKg=0,veauTotPx=0,veauTotKg=0;
     var totalAbats=0;
     if(achatJson.success&&achatJson.data&&achatJson.data.achats){
+      ACHATS_BOEUF_RAW=achatJson.data.achats;
       achatJson.data.achats.forEach(function(a){
         var px=a.prix_achat_kg_sans_abats||0,kg=a.nbr_kg||0;
         totalAbats+=(a.abats||0);
@@ -4590,7 +4592,8 @@ function exportToCharts(){
     periode:{debut:document.getElementById('apDebut').value,fin:document.getElementById('apFin').value},
     modes:{abats:ABATS_MODE,prix_revient:PRIX_REVIENT_MODE},
     byDate:byDate,byPdv:byPdv,byCat:byCat,byProd:byProd,
-    totals:{ca:perf.gCA||0,cost:perf.gCost||0,chg:perf.gChg||0,marginBrute:perf.gMB||0,marginNet:perf.gMN||0}
+    totals:{ca:perf.gCA||0,cost:perf.gCost||0,chg:perf.gChg||0,marginBrute:perf.gMB||0,marginNet:perf.gMN||0},
+    achatsBoeuf:(ACHATS_BOEUF_RAW||[]).map(function(a){return{bete:a.bete,date:a.date||a.date_abattage||a.date_achat||null,nbr_kg:a.nbr_kg||0,prix_sans_abats:a.prix_achat_kg_sans_abats||0,abats:a.abats||0};})
   };
   try{localStorage.setItem('mata_charts_data',JSON.stringify(payload));}
   catch(e){alert('Données trop volumineuses pour localStorage. Essayez une période plus courte.');return;}
