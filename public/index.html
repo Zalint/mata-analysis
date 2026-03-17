@@ -2299,11 +2299,12 @@ function renderPdv(el,pdv,ck){
       h+='<th>R\u00e9el FCFA</th><th>Co\u00fbt Achat</th><th>Marge</th></tr></thead>';
       h+='<tbody>';
       /* Total row (collapsible trigger) */
-      var mpTotFmlLines=mpAllNames.map(function(pn){var d=mpMap[pn];var c=Math.round(d.cost||0);if(c===0)return null;var useTheo=d.theo!==0;var q=useTheo?d.theo:d.reel;return pn+': '+F(q)+'kg('+(useTheo?'theo':'reel')+') \u00d7 '+FK(Math.round(d.px))+' = '+FK(c);}).filter(Boolean).join('\n')+'  \n= Total: '+FK(Math.round(mpTotCost));
+      var mpTotCostFml=mpAllNames.map(function(pn){var d=mpMap[pn];var c=Math.round(d.cost||0);if(c===0)return null;var useTheo=d.theo!==0;var q=useTheo?d.theo:d.reel;return pn+': '+F(q)+'kg('+(useTheo?'theo':'reel')+') \u00d7 '+FK(Math.round(d.px))+' = '+FK(c);}).filter(Boolean).join('\n')+'  \n= Total: '+FK(Math.round(mpTotCost));
+      var mpTotCAFml=mpAllNames.map(function(pn){var d=mpMap[pn];var rf=Math.round(d.reelF||0);if(rf===0)return null;var avgPx=d.reel>0?Math.round(rf/d.reel):0;return pn+': '+F(d.reel)+'kg \u00d7 '+FK(avgPx)+' F/kg\u00d7moyen = '+FK(rf);}).filter(Boolean).join('\n')+'  \n= Total: '+FK(Math.round(mpTotCA));
       h+='<tr class="tot" style="cursor:pointer" onclick="var rows=this.closest(\'table\').querySelectorAll(\'.mp-row-'+mpId+'\');var hidden=rows.length&&rows[0].style.display===\'none\';rows.forEach(function(r){r.style.display=hidden?\'\':\'none\'});this.querySelector(\'.arr\').textContent=hidden?\'\u25bc\':\'\u25b6\'">';
       h+='<td><span class="arr">\u25bc</span> TOTAL</td>';
-      h+='<td style="color:var(--b2)">'+FK(Math.round(mpTotCA))+'</td>';
-      h+='<td style="color:var(--o2)">'+dv(Math.round(mpTotCost),'Co\u00fbt Total \u2014 '+CATS[ck].label,mpTotFmlLines)+'</td>';
+      h+='<td style="color:var(--b2)">'+dv(Math.round(mpTotCA),'R\u00e9el FCFA Total \u2014 '+CATS[ck].label,mpTotCAFml)+'</td>';
+      h+='<td style="color:var(--o2)">'+dv(Math.round(mpTotCost),'Co\u00fbt Total \u2014 '+CATS[ck].label,mpTotCostFml)+'</td>';
       h+='<td style="color:'+mpTotCol+';font-weight:700">'+(mpTotMarge>=0?'+':'')+FK(Math.round(mpTotMarge))+'</td>';
       h+='</tr>';
       /* Product detail rows (collapsible via display:none on each row) */
@@ -2312,11 +2313,13 @@ function renderPdv(el,pdv,ck){
         var mpCA=mpd.reelF||0,mpCost=mpd.cost||0,mpMarge=mpCA-mpCost;
         var mpCol=mpMarge>=0?'var(--t)':'var(--r2)';
         var mpUseTheo=mpd.theo!==0;var mpQty=mpUseTheo?mpd.theo:mpd.reel;
-        var mpFml=mpn+': '+F(mpQty)+'kg('+(mpUseTheo?'theo':'reel')+') \u00d7 '+FK(Math.round(mpd.px))+' F/kg = '+FK(Math.round(mpCost));
+        var mpCostFml=mpn+': '+F(mpQty)+'kg('+(mpUseTheo?'theo':'reel')+') \u00d7 '+FK(Math.round(mpd.px))+' F/kg = '+FK(Math.round(mpCost));
+        var mpAvgPx=mpd.reel>0?Math.round(mpCA/mpd.reel):0;
+        var mpCAFml=mpn+': '+F(mpd.reel)+'kg \u00d7 '+FK(mpAvgPx)+' F/kg\u00d7moyen = '+FK(Math.round(mpCA));
         h+='<tr class="mp-row-'+mpId+'" style="font-size:11px">';
         h+='<td style="padding-left:20px;color:var(--txd)">\u2514 '+mpn+'</td>';
-        h+='<td style="color:var(--b2)">'+FK(Math.round(mpCA))+'</td>';
-        h+='<td style="color:var(--o2)">'+dv(Math.round(mpCost),'Co\u00fbt \u2014 '+mpn,mpFml)+'</td>';
+        h+='<td style="color:var(--b2)">'+dv(Math.round(mpCA),'R\u00e9el FCFA \u2014 '+mpn,mpCAFml)+'</td>';
+        h+='<td style="color:var(--o2)">'+dv(Math.round(mpCost),'Co\u00fbt \u2014 '+mpn,mpCostFml)+'</td>';
         h+='<td style="color:'+mpCol+'">'+(mpMarge>=0?'+':'')+FK(Math.round(mpMarge))+'</td>';
         h+='</tr>';
       }
