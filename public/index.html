@@ -567,24 +567,8 @@ function calcCostDay(day,pdv){
       detail.poisson.qty+=qty;detail.poisson.cost+=qty*ppx;
     }
   }
+  /* Pack composition cost is already included in detail.bovin/veau/poulet/agneau via theo×prix — adding montantInformatif here would double-count */
   var total=detail.bovin.cost+detail.veau.cost+detail.poulet.cost+detail.agneau.cost+detail.poisson.cost;
-  /* Add pack composition cost if PACK_DATA loaded */
-  if(PACK_DATA&&PACK_DATA.pointsVente&&PACK_DATA.pointsVente[pdv]){
-    var pkPdv=PACK_DATA.pointsVente[pdv];
-    var pkTotalCA=pkPdv.montantTotal||1;
-    var pkTotalCost=pkPdv.montantInformatif||0;
-    var pNames2=Object.keys(day.prods||{});
-    for(var pi2=0;pi2<pNames2.length;pi2++){
-      if(pNames2[pi2].indexOf('Pack')!==0)continue;
-      var pkProd=day.prods[pNames2[pi2]];
-      if(!pkProd)continue;
-      var pkCA=pkProd.reelF||0;
-      if(pkCA>0){
-        /* Cost = this pack's CA share × total composition cost */
-        total+=Math.round((pkCA/pkTotalCA)*pkTotalCost);
-      }
-    }
-  }
   return{total:total,detail:detail};
 }
 
