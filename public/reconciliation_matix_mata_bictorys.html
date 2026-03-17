@@ -1437,9 +1437,36 @@ function renderApiImport() {
     </div>`;
 }
 
+const RECO_CACHE_KEY = 'reco_matrix_cache';
+function saveRecoCache(start, end) {
+  try {
+    localStorage.setItem(RECO_CACHE_KEY, JSON.stringify({
+      rawData: state.rawData,
+      start: start, end: end,
+      savedAt: new Date().toISOString()
+    }));
+  } catch(e) { console.error('Cache save:', e); }
+}
+function getRecoCache() {
+  try { const r = localStorage.getItem(RECO_CACHE_KEY); return r ? JSON.parse(r) : null; } catch(e) { return null; }
+}
+
 async function launchApiAndAnalyze() {
   const { start, end } = state.apiDates;
   if (!start || !end) { state.error = "Veuillez saisir les dates de début et de fin"; render(); return; }
+  /* ── Cache hit: same date range already loaded → skip API calls ── */
+  const _cached = getRecoCache();
+  if (_cached && _cached.start === start && _cached.end === end && _cached.rawData) {
+    state.rawData = _cached.rawData;
+    state.apiStatus = { ventes: 'ok', virements: 'ok', cash: 'ok', creances: 'ok' };
+    state.error = null;
+    try {
+      state.result = reconcile();
+      state.tab = 'reco';
+    } catch(e) { state.error = 'Erreur analyse : ' + e.message; }
+    render();
+    return;
+  }
   state.error = null;
   state.apiLoading = true;
   render();
@@ -1537,6 +1564,7 @@ async function launchApiAndAnalyze() {
   try {
     state.result = reconcile();
     state.tab = "reco";
+    saveRecoCache(start, end);
   } catch(e) {
     state.error = "Erreur analyse : " + e.message;
   }
