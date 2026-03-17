@@ -2282,23 +2282,7 @@ function renderPdv(el,pdv,ck){
   if(_margeCatFilter[ck]){
     var mpMap=getProdMapPdv(pdv,_margeCatFilter[ck]);
 
-    /* DEBUG: product-by-product comparison vs calcCostDay */
-    if(ck==='bovin'&&typeof console!=='undefined'){
-      /* calcCostDay cumulated */
-      var _cdays=DATA[pdv]||[],_cTot=0,_cDet={bovin:{qty:0,cost:0},veau:{qty:0,cost:0}};
-      for(var _ci=0;_ci<_cdays.length;_ci++){
-        var _cd=calcCostDay(_cdays[_ci],pdv);
-        _cTot+=_cd.total;
-        _cDet.bovin.qty+=_cd.detail.bovin.qty;_cDet.bovin.cost+=_cd.detail.bovin.cost;
-        _cDet.veau.qty+=_cd.detail.veau.qty;_cDet.veau.cost+=_cd.detail.veau.cost;
-      }
-      /* getProdMapPdv totals */
-      var _mTot=0,_mByProd={};
-      Object.keys(mpMap).forEach(function(pn){_mTot+=mpMap[pn].cost||0;_mByProd[pn]={theo:mpMap[pn].theo,reel:mpMap[pn].reel,cost:Math.round(mpMap[pn].cost||0),px:mpMap[pn].px};});
-      console.log('[DBG] calcCostDay total='+Math.round(_cTot)+' bovin='+Math.round(_cDet.bovin.cost)+' (qty='+_cDet.bovin.qty+') veau='+Math.round(_cDet.veau.cost)+' (qty='+_cDet.veau.qty+')');
-      console.log('[DBG] getProdMapPdv total='+Math.round(_mTot));
-      console.table(_mByProd);
-    }
+
 
     var mpNames=Object.keys(mpMap).sort(function(a,b){return (mpMap[b].reelF||0)-(mpMap[a].reelF||0);});
     /* filter out empty products */
