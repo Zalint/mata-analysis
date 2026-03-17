@@ -48,7 +48,7 @@
 
     /* ── CHARTS GRID ── */
     #chartsArea{padding:16px;display:flex;flex-direction:column;gap:16px}
-    .panel{border:1px solid #1a1a1a;background:#030303;padding:16px 18px}
+    .panel{border:1px solid #1a1a1a;background:#030303;padding:16px 18px;position:relative}
     .panel-title{font-size:8px;font-weight:800;color:#FF6B00;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #111}
     .panel-grid{display:grid;gap:16px}
     .panel-grid.col2{grid-template-columns:1fr 1fr}
@@ -76,6 +76,16 @@
     .stats-tbl td{padding:6px 10px;border-bottom:1px solid #0a0a0a;color:#bbb;font-variant-numeric:tabular-nums}
     .stats-tbl tr:hover td{background:#0a0a0a}
     .stats-tbl .series-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+    /* ── FULLSCREEN PANEL ── */
+    .panel-fs-btn{position:absolute;top:6px;right:8px;background:transparent;border:1px solid #333;color:#666;font-family:inherit;font-size:9px;padding:2px 8px;cursor:pointer;letter-spacing:.5px;opacity:0;transition:opacity .15s,color .15s,border-color .15s;z-index:5}
+    .panel:hover .panel-fs-btn{opacity:1}
+    .panel-fs-btn:hover{color:#FF6B00;border-color:#FF6B00}
+    .panel.fullscreen{position:fixed!important;top:0;left:0;right:0;bottom:0;z-index:500;padding:24px 32px;overflow:auto;border:none;margin:0;width:100vw;height:100vh}
+    .panel.fullscreen .panel-title{font-size:11px;margin-bottom:20px}
+    .panel.fullscreen .panel-fs-btn{opacity:1;top:12px;right:16px;font-size:10px;padding:4px 12px}
+    .panel.fullscreen canvas{min-height:80vh}
+    body.has-fullscreen{overflow:hidden}
 
     /* ── BOTTOM BAR ── */
     #bottombar{position:fixed;bottom:0;left:0;right:0;height:30px;background:#000;border-top:1px solid #1a1a1a;display:flex;align-items:center;padding:0 16px;gap:0}
@@ -466,6 +476,39 @@ function render(){
   });
 }
 
+// ── FULLSCREEN PANEL ────────────────────────────────────────────────────────
+function toggleFullscreen(panel){
+  var isFS=panel.classList.contains('fullscreen');
+  if(isFS){
+    panel.classList.remove('fullscreen');
+    document.body.classList.remove('has-fullscreen');
+    var btn=panel.querySelector('.panel-fs-btn');
+    if(btn)btn.textContent='⛶ EXPAND';
+  }else{
+    // close any other fullscreen panel first
+    document.querySelectorAll('.panel.fullscreen').forEach(function(p){
+      p.classList.remove('fullscreen');
+      var b=p.querySelector('.panel-fs-btn');if(b)b.textContent='⛶ EXPAND';
+    });
+    panel.classList.add('fullscreen');
+    document.body.classList.add('has-fullscreen');
+    var btn=panel.querySelector('.panel-fs-btn');
+    if(btn)btn.textContent='✕ CLOSE';
+  }
+  // resize all Chart.js instances in this panel
+  panel.querySelectorAll('canvas').forEach(function(cv){
+    var cid=cv.id;
+    if(CH[cid])CH[cid].resize();
+  });
+}
+// ESC to close fullscreen
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var fs=document.querySelector('.panel.fullscreen');
+    if(fs)toggleFullscreen(fs);
+  }
+});
+
 // ── TAB SWITCH ──────────────────────────────────────────────────────────────
 function switchTab(tabId){
   document.querySelectorAll('.tab-btn').forEach(function(btn){btn.classList.toggle('active',btn.dataset.tab===tabId);});
@@ -616,7 +659,6 @@ function renderPrixAchat(){
   });
   html+='</tbody></table>';
   // ── SUMMARY TABLE ──
-  html+='</tbody></table>';
   html+='<table class="stats-tbl" style="margin-top:24px"><thead><tr><th>Bête</th><th>Nb achats</th><th>Total Kg</th><th>Coût total (sans abats)</th><th>Total abats</th><th>Coût total (avec abats)</th></tr></thead><tbody>';
   ['boeuf','veau'].forEach(function(b){
     var t=totals[b];
@@ -689,6 +731,15 @@ function renderPrixAchat(){
   document.getElementById('bStatus').innerHTML=
     '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#22C55E;margin-right:6px;vertical-align:middle"></span>DATA LOADED — '+
     new Date(RAW.exportedAt).toLocaleString('fr-FR');
+
+  // Inject fullscreen buttons into overview panels
+  document.querySelectorAll('#tab-overview .panel').forEach(function(panel){
+    var btn=document.createElement('button');
+    btn.className='panel-fs-btn';
+    btn.textContent='⛶ EXPAND';
+    btn.onclick=function(e){e.stopPropagation();toggleFullscreen(panel);};
+    panel.appendChild(btn);
+  });
 
   applyFilter();
 })();
