@@ -2094,7 +2094,10 @@ function renderAll(el,ck){
     var crow=cRows[cri];if(!crow.n)continue;
     var crMBp=crow.ca!==0?(crow.mb/crow.ca*100):0;
     var crCol=crow.mb>=0?'var(--t)':'var(--r2)';
-    var crCostFml=cfg.getPdvCostFml(crow.det);
+    /* Build per-product cost detail from getProdMapPdv */
+    var crProdMap=getProdMapPdv(crow.pdv,catFilterMap2[ck]||[ck]);
+    var crProdNames=Object.keys(crProdMap).sort(function(a,b){return (crProdMap[b].cost||0)-(crProdMap[a].cost||0);});
+    var crCostFml=crProdNames.map(function(pn){var d=crProdMap[pn];var c=Math.round(d.cost||0);if(c===0)return null;return pn+': '+FK(d.theo>0?d.theo:d.reel)+(d.theo>0?'kg':' u')+' \u00d7 '+FK(d.px)+' = '+FK(c);}).filter(Boolean).join('\n')+'  \n= Total: '+FK(Math.round(crow.cost));
     h+='<tr><td style="font-weight:600">'+crow.pdv+'</td><td>'+crow.n+'</td><td style="color:var(--b2)">'+FK(Math.round(crow.ca))+'</td><td style="color:var(--o2)">'+dv(Math.round(crow.cost),'Co\u00fbt Achat \u2014 '+crow.pdv,crCostFml)+'</td><td style="color:'+crCol+';font-weight:700">'+FK(Math.round(crow.mb))+'</td><td style="color:'+crCol+'">'+F(crMBp,1)+'%</td></tr>';
   }
   var cTotCol=cMB>=0?'var(--t)':'var(--r2)';
