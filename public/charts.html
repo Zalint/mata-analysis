@@ -513,10 +513,10 @@ function renderPrixAchat(){
     options:{
       responsive:true,animation:false,
       plugins:{legend:LEG,tooltip:{backgroundColor:'#0a0a0a',borderColor:'#FF6B00',borderWidth:1,titleColor:'#FF6B00',bodyColor:'#bbb',padding:12,
-        callbacks:{label:function(ctx){return ctx.dataset.label+': '+fmtK(ctx.parsed.y)+' F/kg';}}}},
+        callbacks:{label:function(ctx){return ctx.dataset.label+': '+Math.round(ctx.parsed.y).toLocaleString('fr-FR')+' F/kg';}}}},
       scales:{
         x:{grid:GRID,ticks:{...TICK,maxRotation:45}},
-        y:{grid:GRID,ticks:{...TICK,callback:function(v){return fmtK(v);}},
+        y:{beginAtZero:false,grid:GRID,ticks:{...TICK,callback:function(v){return Math.round(v).toLocaleString('fr-FR');}},
           title:{display:true,text:'F/kg',color:'#555',font:{size:9,family:"'JetBrains Mono',monospace"}}}
       }
     }
@@ -529,6 +529,7 @@ function renderPrixAchat(){
     {name:'Veau sans abats',color:'#FFD700',data:veauSans},
     {name:'Veau avec abats',color:'#FFD70088',data:veauAvec},
   ];
+  function fmtFull(v){return Math.round(v).toLocaleString('fr-FR');}
   function calcStats(arr){
     var vals=arr.filter(function(v){return v!==null&&v!==undefined;});
     if(!vals.length)return null;
@@ -549,9 +550,9 @@ function renderPrixAchat(){
     if(!st)return;
     hasStats=true;
     html+='<tr><td><span class="series-dot" style="background:'+s.color+'"></span>'+s.name+'</td>';
-    html+='<td>'+st.n+'</td><td>'+fmtK(st.min)+' F</td><td>'+fmtK(st.max)+' F</td>';
-    html+='<td>'+fmtK(st.avg)+' F</td><td>'+fmtK(st.med)+' F</td>';
-    html+='<td>'+fmtK(st.vol)+' F</td><td>'+fmtK(st.amp)+' F</td></tr>';
+    html+='<td>'+st.n+'</td><td>'+fmtFull(st.min)+' F/kg</td><td>'+fmtFull(st.max)+' F/kg</td>';
+    html+='<td>'+fmtFull(st.avg)+' F/kg</td><td>'+fmtFull(st.med)+' F/kg</td>';
+    html+='<td>'+fmtFull(st.vol)+' F/kg</td><td>'+fmtFull(st.amp)+' F/kg</td></tr>';
   });
   html+='</tbody></table>';
   if(hasStats){
