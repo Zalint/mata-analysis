@@ -1859,20 +1859,19 @@ function getProdMapGlobal(catFilter){
         if(catLo==='poisson'&&POISSON_VENTES)continue;
         var reel=p.reel||0,theo=p.theo||0,reelF=p.reelF||0;
         if(reel===0&&theo===0)continue;
-        /* skip negative theo entries (inventory corrections) */
-        var theoPos=Math.max(0,theo);
         var isDec=DECOUPE_G.indexOf(pn)>=0;
         var dispCat=isDec?'Volaille (découpe)':p.cat||'';
         if(!map[pn])map[pn]={cat:dispCat,reel:0,theo:0,reelF:0,cost:0,px:0};
-        map[pn].reel+=reel;map[pn].theo+=theoPos;map[pn].reelF+=reelF;
+        map[pn].reel+=reel;map[pn].theo+=theo;map[pn].reelF+=reelF;
         var ppx=PRIX_PRODUIT[pn];
-        if(ppx!==undefined){var qx=theoPos||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
+        /* use theo as-is (incl. negative corrections) to match calcCostDay exactly */
+        if(ppx!==undefined){var qx=theo||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
         else if(catLo==='bovin'){
-          if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theoPos*pxV;map[pn].px=pxV;}
-          else{var qb=theoPos||reel;map[pn].cost+=qb*pxB;map[pn].px=pxB;}
+          if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*pxV;map[pn].px=pxV;}
+          else{var qb=theo||reel;map[pn].cost+=qb*pxB;map[pn].px=pxB;}
         }
-        else if(catLo==='volaille'){var qv=theoPos||reel;map[pn].cost+=qv*pxP;map[pn].px=pxP;}
-        else if(catLo==='ovin'||catLo==='caprin'){var qo=theoPos||reel;map[pn].cost+=qo*pxA;map[pn].px=pxA;}
+        else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*pxP;map[pn].px=pxP;}
+        else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*pxA;map[pn].px=pxA;}
         else if(catLo==='poisson'){
           var pc=POISSON_CONFIG[pn];var bpx2=pc?pc.achat:(PRIX.poisson||3000);
           map[pn].cost+=bestV(p)*bpx2;map[pn].px=bpx2;
@@ -1915,20 +1914,19 @@ function getProdMapPdv(pdv,catFilter){
       if(catLo==='poisson'&&POISSON_VENTES)continue;
       var reel=p.reel||0,theo=p.theo||0,reelF=p.reelF||0;
       if(reel===0&&theo===0)continue;
-      /* skip negative theo entries (inventory corrections) */
-      var theoPos=Math.max(0,theo);
       var isDec=DECOUPE_G.indexOf(pn)>=0;
       var dispCat=isDec?'Volaille (d\u00e9coupe)':p.cat||'';
       if(!map[pn])map[pn]={cat:dispCat,reel:0,theo:0,reelF:0,cost:0,px:0};
-      map[pn].reel+=reel;map[pn].theo+=theoPos;map[pn].reelF+=reelF;
+      map[pn].reel+=reel;map[pn].theo+=theo;map[pn].reelF+=reelF;
       var ppx=PRIX_PRODUIT[pn];
-      if(ppx!==undefined){var qx=theoPos||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
+      /* use theo as-is (incl. negative corrections) to match calcCostDay exactly */
+      if(ppx!==undefined){var qx=theo||reel;map[pn].cost+=qx*ppx;map[pn].px=ppx;}
       else if(catLo==='bovin'){
-        if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theoPos*pxV;map[pn].px=pxV;}
-        else{var qb=theoPos||reel;map[pn].cost+=qb*pxB;map[pn].px=pxB;}
+        if(pn.toLowerCase().indexOf('veau')>=0){map[pn].cost+=theo*pxV;map[pn].px=pxV;}
+        else{var qb=theo||reel;map[pn].cost+=qb*pxB;map[pn].px=pxB;}
       }
-      else if(catLo==='volaille'){var qv=theoPos||reel;map[pn].cost+=qv*pxP;map[pn].px=pxP;}
-      else if(catLo==='ovin'||catLo==='caprin'){var qo=theoPos||reel;map[pn].cost+=qo*pxA;map[pn].px=pxA;}
+      else if(catLo==='volaille'){var qv=theo||reel;map[pn].cost+=qv*pxP;map[pn].px=pxP;}
+      else if(catLo==='ovin'||catLo==='caprin'){var qo=theo||reel;map[pn].cost+=qo*pxA;map[pn].px=pxA;}
       else if(catLo==='poisson'){
         var pc=POISSON_CONFIG[pn];var bpx2=pc?pc.achat:(PRIX.poisson||3000);
         map[pn].cost+=bestV(p)*bpx2;map[pn].px=bpx2;
