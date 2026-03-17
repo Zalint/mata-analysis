@@ -2318,7 +2318,7 @@ function renderPdv(el,pdv,ck){
         var mpAvgPx=mpd.reel>0?Math.round(mpCA/mpd.reel):0;
         var _mpPxGrp={};(mpd.reelFDays||[]).forEach(function(d){var k=d.px;if(!_mpPxGrp[k])_mpPxGrp[k]={reel:0,reelF:0,n:0};_mpPxGrp[k].reel+=d.reel;_mpPxGrp[k].reelF+=d.reelF;_mpPxGrp[k].n++;});
         var _mpPxLines=Object.keys(_mpPxGrp).sort(function(a,b){return _mpPxGrp[b].reelF-_mpPxGrp[a].reelF}).map(function(px){var g=_mpPxGrp[px];return F(g.reel)+'kg \u00d7 '+FK(Number(px))+' F/kg ('+g.n+' j) = '+FK(Math.round(g.reelF));});
-        var mpCAFml=mpn+':\n'+_mpPxLines.join('\n')+'\nprix moyen pond\u00e9r\u00e9: '+FK(mpAvgPx)+' F/kg\n= Total: '+FK(Math.round(mpCA));
+        var mpCAFml=mpn+':\n'+_mpPxLines.join('\n')+'\nprix moyen pond\u00e9r\u00e9: '+FK(mpAvgPx)+' F/kg\n'+mpn+': '+F(mpd.reel)+'kg \u00d7 '+FK(mpAvgPx)+' F/kg\u00d7moyen = '+FK(Math.round(mpCA));
         h+='<tr class="mp-row-'+mpId+'" style="font-size:11px">';
         h+='<td style="padding-left:20px;color:var(--txd)">\u2514 '+mpn+'</td>';
         h+='<td style="color:var(--b2)">'+dv(Math.round(mpCA),'R\u00e9el FCFA \u2014 '+mpn,mpCAFml)+'</td>';
