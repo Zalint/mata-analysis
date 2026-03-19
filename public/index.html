@@ -46,6 +46,7 @@ body.light{--bg:#f1f5f9;--s1:#ffffff;--s2:#f8fafc;--bd:#e2e8f0;--bd2:#cbd5e1;--t
 .cT[data-c="perf"].on{background:#15803d;border-color:#22c55e}
 .cT[data-c="sim"].on{background:#7e22ce;border-color:#a855f7}
 .cT[data-c="clients"].on{background:#0e7490;border-color:#06b6d4}
+.cT[data-c="perration"].on{background:#92400e;border-color:#f59e0b}
 .reclCfg{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 16px;margin-top:10px;text-align:left}
 .reclCfg summary{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--tx3);cursor:pointer}
 .reclCfg .rr{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:9px}
@@ -343,7 +344,12 @@ var CATS={
     dechetCat:null}
 };
 var SKIP=['Chambre froide','Linguere','Dahra'];
-var DATA={},TAB='__all__',CAT='perf',dbg=[];
+var DATA={},DATA_CF={},TAB='__all__',CAT='perf',dbg=[];
+/* Perration Gate state */
+var PERRATION_EXCLUDE=['Abats','Peaux','Foie','Yell'];
+var PERRATION_PRIX_MODE='confondus'; /* 'boeuf','veau','confondus' */
+var PERRATION_PRIX_OVERRIDE=0; /* 0 = use calculated, >0 = manual override */
+var PERRATION_TRACKER='Jarret';
 var RAW_FILES={};
 var AUTO_ANALYSE=false; /* Store raw ArrayBuffers: {reconciliation:ab, achats:ab, ventes:ab, packs:str} */
 var RAW_FILES={}; /* store raw file data: {reconciliation:ArrayBuffer, achats:AB, ventes:AB, packs:string} */
@@ -1252,6 +1258,7 @@ function buildCatTabs(){
   h+='<div class="cT'+(CAT==='perf'?' on':'')+'" data-c="perf">\ud83d\udcc8 Perf PdV</div>';
   h+='<div class="cT'+(CAT==='sim'?' on':'')+'" data-c="sim">\ud83d\udcca Simulation</div>';
   h+='<div class="cT'+(CAT==='clients'?' on':'')+'" data-c="clients">\ud83d\udc65 Clients</div>';
+  h+='<div class="cT'+(CAT==='perration'?' on':'')+'" data-c="perration">\u2696\ufe0f Perration Gate</div>';
   for(var i=0;i<cks.length;i++){var c=CATS[cks[i]];h+='<div class="cT'+(cks[i]===CAT?' on':'')+'" data-c="'+cks[i]+'">'+c.icon+' '+c.label+'</div>';}
   h+='<span id="excBox"></span>';
   el.innerHTML=h;
@@ -1307,8 +1314,16 @@ function saveToCache(debut,fin){
         return d;
       });
     }
+    var dataCFSerial={};
+    var cfPdvs=Object.keys(DATA_CF);
+    for(var ci=0;ci<cfPdvs.length;ci++){
+      dataCFSerial[cfPdvs[ci]]=DATA_CF[cfPdvs[ci]].map(function(day){
+        var d2=Object.assign({},day);d2.date=day.date?day.date.toISOString():null;return d2;
+      });
+    }
     localStorage.setItem(MATA_CACHE_KEY,JSON.stringify({
-      DATA:dataSerial,VENTES_DATA:VENTES_DATA,PACK_DATA:PACK_DATA,
+      DATA:dataSerial,DATA_CF:dataCFSerial,VENTES_DATA:VENTES_DATA,PACK_DATA:PACK_DATA,
+      ACHATS_BOEUF_RAW:ACHATS_BOEUF_RAW,FRAIS_AB:FRAIS_AB,
       PRIX:{bovin:PRIX.bovin,veau:PRIX.veau,poulet:PRIX.poulet,agneau:PRIX.agneau,poisson:PRIX.poisson},
       debut:debut,fin:fin,savedAt:new Date().toISOString()
     }));
@@ -1325,7 +1340,15 @@ function restoreFromCache(cache){
   }
   if(cache.VENTES_DATA)VENTES_DATA=cache.VENTES_DATA;
   if(cache.PACK_DATA)PACK_DATA=cache.PACK_DATA;
+  if(cache.DATA_CF){
+    var cfPdvs=Object.keys(cache.DATA_CF);
+    for(var ci=0;ci<cfPdvs.length;ci++){
+      DATA_CF[cfPdvs[ci]]=cache.DATA_CF[cfPdvs[ci]].map(function(day){if(day.date)day.date=new Date(day.date);return day;});
+    }
+  }
   if(cache.PRIX){PRIX.bovin=cache.PRIX.bovin;PRIX.veau=cache.PRIX.veau;PRIX.poulet=cache.PRIX.poulet;PRIX.agneau=cache.PRIX.agneau;PRIX.poisson=cache.PRIX.poisson;}
+  if(cache.ACHATS_BOEUF_RAW)ACHATS_BOEUF_RAW=cache.ACHATS_BOEUF_RAW;
+  if(cache.FRAIS_AB)FRAIS_AB=cache.FRAIS_AB;
 }
 
 function getCacheInfo(){
@@ -1476,7 +1499,7 @@ async function launchApiAnalysis(){
 
     /* ── Step 3: reconciliation → DATA ── */
     apStatus('3/4 Transformation donn\u00e9es\u2026');
-    var newData={};
+    var newData={},newDataCF={};
     if(reconRes.success&&reconRes.data&&reconRes.data.byDate){
       var byDate=reconRes.data.byDate;
       var dKeys=Object.keys(byDate);
@@ -1489,8 +1512,11 @@ async function launchApiAnalysis(){
         var pdvKeys=Object.keys(dayRec.details||{});
         for(var pi=0;pi<pdvKeys.length;pi++){
           var pdvNm=pdvKeys[pi];
-          if(SKIP.indexOf(pdvNm)>=0)continue;
-          if(!newData[pdvNm])newData[pdvNm]=[];
+          /* Chambre froide → DATA_CF instead of skipping */
+          var isCF=pdvNm==='Chambre froide';
+          if(!isCF&&SKIP.indexOf(pdvNm)>=0)continue;
+          var target=isCF?newDataCF:newData;
+          if(!target[pdvNm])target[pdvNm]=[];
           var prods=dayRec.details[pdvNm];
           var dayProds={};
           var cashR=0,cashT=0,cashE=0;
@@ -1507,13 +1533,17 @@ async function launchApiAnalysis(){
             dayProds[pn]={reel:reel,theo:theo,ajust:reel,cat:cat,catOrig:cat,reelF:reelF,theoF:theoF,ecartF:ecartF};
             cashR+=reelF;cashT+=theoF;cashE+=ecartF;
           }
-          newData[pdvNm].push({date:dayDate,prods:dayProds,cashR:cashR,cashT:cashT,cashE:cashE});
+          target[pdvNm].push({date:dayDate,prods:dayProds,cashR:cashR,cashT:cashT,cashE:cashE});
         }
       }
       /* Sort days per PdV */
       var pdvList=Object.keys(newData);
       for(var si=0;si<pdvList.length;si++){
         newData[pdvList[si]].sort(function(a,b){return a.date-b.date;});
+      }
+      var cfList=Object.keys(newDataCF);
+      for(var csi=0;csi<cfList.length;csi++){
+        newDataCF[cfList[csi]].sort(function(a,b){return a.date-b.date;});
       }
     }
 
@@ -1636,6 +1666,7 @@ async function launchApiAnalysis(){
     PRIX.bovin=pxBoeuf;
     PRIX.veau=pxVeau;
     DATA=newData;
+    DATA_CF=newDataCF;
 
     /* Hide upload zone, show main app */
     var uz=document.getElementById('UZ');
@@ -1690,6 +1721,7 @@ function render(){
     else if(CAT==='perf'){if(TAB==='__all__')renderPerfGlobal(ct);else renderPerfPdv(ct,TAB);}
     else if(CAT==='sim'){renderSim(ct);}
     else if(CAT==='clients'){renderClients(ct,TAB);}
+    else if(CAT==='perration'){renderPerration(ct);}
     else if(TAB==='__all__')renderAll(ct,CAT);else renderPdv(ct,TAB,CAT);
   }
   catch(err){ct.innerHTML='<div style="color:var(--r2);padding:16px;font-size:9px;font-family:JetBrains Mono">'+err.message+'<br><pre>'+err.stack+'</pre></div>';}
@@ -3380,6 +3412,352 @@ function renderSim(el){
 }
 
 /*══════ CLIENTS ══════*/
+/* ══════ PERRATION GATE ══════ */
+function calcPerration(){
+  var excl=PERRATION_EXCLUDE;
+  var isBovin=function(p){return(p.cat||'').toLowerCase()==='bovin';};
+  var isExcluded=function(pn){for(var i=0;i<excl.length;i++){if(pn===excl[i])return true;}return false;};
+  /* Prix achat moyen */
+  var pxAchat=PRIX.bovin||3720;
+  if(PERRATION_PRIX_MODE==='veau')pxAchat=PRIX.veau||PRIX.bovin||3720;
+  else if(PERRATION_PRIX_MODE==='confondus'){
+    var bkg=0,vkg=0;
+    if(ACHATS_BOEUF_RAW&&ACHATS_BOEUF_RAW.length){
+      for(var ai=0;ai<ACHATS_BOEUF_RAW.length;ai++){
+        var a=ACHATS_BOEUF_RAW[ai];
+        if(a.bete==='boeuf')bkg+=(a.nbr_kg||0);
+        else if(a.bete==='veau')vkg+=(a.nbr_kg||0);
+      }
+    }
+    var totalKg=bkg+vkg;
+    if(totalKg>0)pxAchat=Math.round((bkg*PRIX.bovin+vkg*PRIX.veau)/totalKg);
+    else pxAchat=PRIX.bovin||3720;
+  }
+  /* Manual override if set */
+  if(PERRATION_PRIX_OVERRIDE>0)pxAchat=PERRATION_PRIX_OVERRIDE;
+  /* Aggregate per day across all PdVs */
+  var dayMap={};/* dateKey → {cleanKg,bonusCFA,theoKg,abatKg,cfKg,allReelCFA} */
+  var allBovinProds={};/* collect all bovin product names */
+  /* Per-product bonus CFA totals */
+  var bonusByProd={};/* prodName → total CFA */
+  /* Per-PdV pertes: theo - clean for retail PdVs */
+  var pertesByPdv={};/* pdvName → {theo,clean} */
+  /* Helper to process a PdV's days */
+  function processPdv(pdvNm,days,role){
+    /* role: 'retail','abattage','cf' */
+    for(var di=0;di<days.length;di++){
+      var day=days[di];if(!day.prods)continue;
+      var dk=day.date.toISOString().slice(0,10);
+      if(!dayMap[dk])dayMap[dk]={date:day.date,cleanKg:0,bonusCFA:0,bonusAbatsPeaux:0,bonusFoieYell:0,theoKg:0,abatKg:0,cfKg:0,allReelCFA:0,tracker:{reel:0,reelF:0,theo:0,theoF:0}};
+      var dm=dayMap[dk];
+      var pks=Object.keys(day.prods);
+      for(var pi=0;pi<pks.length;pi++){
+        var pn=pks[pi],p=day.prods[pn];
+        if(!isBovin(p))continue;
+        allBovinProds[pn]=1;
+        var vReel=typeof p.ajust==='number'&&p.ajust!==0?p.ajust:p.reel;
+        /* Product tracker */
+        if(pn===PERRATION_TRACKER){
+          dm.tracker.reel+=vReel;
+          dm.tracker.reelF+=(p.reelF||0);
+          dm.tracker.theo+=(p.theo||0);
+          dm.tracker.theoF+=(p.theoF||0);
+        }
+        /* Track bonus sub-categories */
+        var isAP=pn==='Abats'||pn==='Peaux';
+        var isFY=pn==='Foie'||pn==='Yell';
+        if(role==='abattage'){
+          dm.abatKg+=(p.theo||0);
+          if(isExcluded(pn)){dm.bonusCFA+=(p.reelF||0);if(isAP)dm.bonusAbatsPeaux+=(p.reelF||0);if(isFY)dm.bonusFoieYell+=(p.reelF||0);bonusByProd[pn]=(bonusByProd[pn]||0)+(p.reelF||0);}
+          dm.allReelCFA+=(p.reelF||0);
+        } else if(role==='cf'){
+          dm.cfKg+=(p.theo||0);
+          if(isExcluded(pn)){dm.bonusCFA+=(p.reelF||0);if(isAP)dm.bonusAbatsPeaux+=(p.reelF||0);if(isFY)dm.bonusFoieYell+=(p.reelF||0);bonusByProd[pn]=(bonusByProd[pn]||0)+(p.reelF||0);}
+          dm.allReelCFA+=(p.reelF||0);
+        } else {
+          /* retail PdV — track per-PdV pertes */
+          if(!pertesByPdv[pdvNm])pertesByPdv[pdvNm]={theo:0,clean:0};
+          pertesByPdv[pdvNm].theo+=(p.theo||0);
+          if(isExcluded(pn)){
+            dm.bonusCFA+=(p.reelF||0);if(isAP)dm.bonusAbatsPeaux+=(p.reelF||0);if(isFY)dm.bonusFoieYell+=(p.reelF||0);bonusByProd[pn]=(bonusByProd[pn]||0)+(p.reelF||0);
+          } else {
+            dm.cleanKg+=vReel;
+            pertesByPdv[pdvNm].clean+=vReel;
+          }
+          dm.theoKg+=(p.theo||0);
+          dm.allReelCFA+=(p.reelF||0);
+        }
+      }
+    }
+  }
+  /* Process all PdVs in DATA */
+  var pdvs=Object.keys(DATA);
+  for(var i=0;i<pdvs.length;i++){
+    var nm=pdvs[i];
+    if(nm==='Abattage')processPdv(nm,DATA[nm],'abattage');
+    else processPdv(nm,DATA[nm],'retail');
+  }
+  /* Process Chambre froide from DATA_CF */
+  var cfPdvs=Object.keys(DATA_CF||{});
+  for(var ci=0;ci<cfPdvs.length;ci++){
+    processPdv(cfPdvs[ci],DATA_CF[cfPdvs[ci]],'cf');
+  }
+  /* Build sorted day array */
+  var dks=Object.keys(dayMap).sort();
+  var days=[];
+  var totClean=0,totBonusCFA=0,totBonusAP=0,totBonusFY=0,totTheo=0,totAbat=0,totCF=0,totAllReelCFA=0;
+  var totTrkReel=0,totTrkReelF=0,totTrkTheo=0,totTrkTheoF=0;
+  for(var j=0;j<dks.length;j++){
+    var dm=dayMap[dks[j]];
+    var bonusKg=pxAchat>0?(dm.bonusCFA/pxAchat):0;
+    dm.bonusKg=bonusKg;
+    dm.ecart=dm.theoKg-(dm.cleanKg+bonusKg+dm.abatKg+dm.cfKg);
+    days.push(dm);
+    totClean+=dm.cleanKg;totBonusCFA+=dm.bonusCFA;
+    totBonusAP+=dm.bonusAbatsPeaux;totBonusFY+=dm.bonusFoieYell;
+    totTheo+=dm.theoKg;totAbat+=dm.abatKg;totCF+=dm.cfKg;
+    totAllReelCFA+=dm.allReelCFA;
+    totTrkReel+=dm.tracker.reel;totTrkReelF+=dm.tracker.reelF;
+    totTrkTheo+=dm.tracker.theo;totTrkTheoF+=dm.tracker.theoF;
+  }
+  var totBonusKg=pxAchat>0?(totBonusCFA/pxAchat):0;
+  var totEcart=totTheo-(totClean+totBonusKg+totAbat+totCF);
+  /* Marge Bovin Ultime = total real revenue + MaaS commission - (total theo kg all PdVs × pxAchat) - frais abattage */
+  /* total theo all PdVs = theoKg (retail) + abatKg + cfKg */
+  var totalTheoAllKg=totTheo+totAbat+totCF;
+  /* MaaS commissions on all PdVs */
+  var totMaaS=0;
+  var pdvsMaas=Object.keys(DATA);
+  for(var mi=0;mi<pdvsMaas.length;mi++){totMaaS+=getMaaSCommission(pdvsMaas[mi]);}
+  /* Frais d'abattage from ACHATS_BOEUF_RAW (API) filtered to active period, fallback FRAIS_AB (Excel) */
+  var totFraisAb=0;
+  console.log('[FraisAb Debug] ACHATS_BOEUF_RAW.length='+(ACHATS_BOEUF_RAW?ACHATS_BOEUF_RAW.length:0)+' dks range='+dks[0]+'..'+dks[dks.length-1]);
+  if(ACHATS_BOEUF_RAW&&ACHATS_BOEUF_RAW.length){
+    console.log('[FraisAb Debug] Sample record:', JSON.stringify(ACHATS_BOEUF_RAW[0]));
+    for(var fi=0;fi<ACHATS_BOEUF_RAW.length;fi++){
+      var aRec=ACHATS_BOEUF_RAW[fi];
+      var aDate=aRec.date||'';
+      var inRange=true;
+      if(aDate&&dks.length>0&&(aDate<dks[0]||aDate>dks[dks.length-1])){inRange=false;}
+      if(fi<3)console.log('[FraisAb Debug] rec#'+fi+' date='+aDate+' frais_abattage='+aRec.frais_abattage+' inRange='+inRange);
+      if(!inRange)continue;
+      totFraisAb+=(aRec.frais_abattage||0);
+    }
+  }
+  console.log('[FraisAb Debug] totFraisAb from API='+totFraisAb);
+  if(totFraisAb===0){
+    var fabKeys=Object.keys(FRAIS_AB||{});
+    console.log('[FraisAb Debug] FRAIS_AB keys='+fabKeys.length+' keys='+fabKeys.slice(0,5).join(','));
+    for(var fk=0;fk<fabKeys.length;fk++){
+      if(dks.length>0&&(fabKeys[fk]<dks[0]||fabKeys[fk]>dks[dks.length-1]))continue;
+      totFraisAb+=(FRAIS_AB[fabKeys[fk]]||0);
+    }
+    console.log('[FraisAb Debug] totFraisAb from FRAIS_AB='+totFraisAb);
+  }
+  var coutViande=totalTheoAllKg*pxAchat;
+  var margeUltime=totAllReelCFA+totMaaS-coutViande-totFraisAb;
+  console.log('[Perration Debug] recettes='+totAllReelCFA+' maas='+totMaaS+' theoAllKg='+totalTheoAllKg+' pxAchat='+pxAchat+' coutViande='+coutViande+' fraisAb='+totFraisAb+' marge='+margeUltime);
+  return{days:days,pxAchat:pxAchat,
+    totClean:totClean,totBonusCFA:totBonusCFA,totBonusKg:totBonusKg,
+    totTheo:totTheo,totAbat:totAbat,totCF:totCF,totEcart:totEcart,
+    totAllReelCFA:totAllReelCFA,totBonusAP:totBonusAP,totBonusFY:totBonusFY,
+    bonusByProd:bonusByProd,pertesByPdv:pertesByPdv,
+    totMaaS:totMaaS,totFraisAb:totFraisAb,coutViande:coutViande,
+    margeUltime:margeUltime,totalTheoAllKg:totalTheoAllKg,
+    tracker:{reel:totTrkReel,reelF:totTrkReelF,theo:totTrkTheo,theoF:totTrkTheoF},
+    allBovinProds:Object.keys(allBovinProds).sort()};
+}
+
+function renderPerration(el){
+  var d=calcPerration();
+  var h='<div class="st" style="color:#f59e0b">\u2696\ufe0f Perration Gate \u2014 Bovin</div>';
+  /* ── Controls bar ── */
+  h+='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0 12px;font-size:9px">';
+  /* Prix mode selector */
+  h+='<span style="color:var(--txd)">Prix achat :</span>';
+  h+='<select id="prxMode" style="font-size:9px;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:4px;padding:2px 4px">';
+  h+='<option value="confondus"'+(PERRATION_PRIX_MODE==='confondus'?' selected':'')+'>Boeuf+Veau confondus</option>';
+  h+='<option value="boeuf"'+(PERRATION_PRIX_MODE==='boeuf'?' selected':'')+'>Boeuf seul</option>';
+  h+='<option value="veau"'+(PERRATION_PRIX_MODE==='veau'?' selected':'')+'>Veau seul</option>';
+  h+='</select>';
+  var pxDisplay=PERRATION_PRIX_OVERRIDE>0?PERRATION_PRIX_OVERRIDE:d.pxAchat;
+  var pxIsOverride=PERRATION_PRIX_OVERRIDE>0;
+  h+='<input id="prxOverride" type="number" value="'+Math.round(pxDisplay)+'" style="width:60px;font-size:9px;font-weight:700;background:'+(pxIsOverride?'#7c3aed33':'var(--bg2)')+';color:'+(pxIsOverride?'#a78bfa':'var(--g)')+';border:1px solid '+(pxIsOverride?'#7c3aed':'var(--bd)')+';border-radius:4px;padding:2px 4px;text-align:right">';
+  h+='<span style="font-size:9px;color:var(--txd)">F/kg</span>';
+  if(pxIsOverride)h+='<button id="prxReset" style="font-size:8px;background:none;border:1px solid var(--bd);color:var(--txd);border-radius:3px;padding:1px 4px;cursor:pointer;margin-left:2px" title="Revenir au prix calcul\u00e9">\u21ba</button>';
+  h+='<span style="color:var(--bd2)">|</span>';
+  /* Exclude checkboxes */
+  h+='<span style="color:var(--txd)">Exclure du clean :</span>';
+  var allExcludable=['Abats','Peaux','Foie','Yell'];
+  for(var ei=0;ei<allExcludable.length;ei++){
+    var en=allExcludable[ei],chk=PERRATION_EXCLUDE.indexOf(en)>=0;
+    h+='<label style="cursor:pointer"><input type="checkbox" data-pex="'+en+'"'+(chk?' checked':'')+' style="margin:0 2px">';
+    h+='<span style="'+(chk?'text-decoration:line-through;opacity:.5':'')+'">'+en+'</span></label>';
+  }
+  h+='<span style="color:var(--bd2)">|</span>';
+  /* Product tracker */
+  h+='<span style="color:var(--txd)">Tracker :</span>';
+  h+='<select id="prxTracker" style="font-size:9px;background:var(--bg2);color:var(--tx);border:1px solid var(--bd);border-radius:4px;padding:2px 4px">';
+  for(var ti=0;ti<d.allBovinProds.length;ti++){
+    var tn=d.allBovinProds[ti];
+    h+='<option value="'+tn+'"'+(tn===PERRATION_TRACKER?' selected':'')+'>'+tn+'</option>';
+  }
+  h+='</select>';
+  h+='</div>';
+
+  /* ── KPI Row ── */
+  function kpi(label,val,unit,color,sub,tip){
+    return '<div style="flex:1;min-width:130px;background:var(--bg2);border-radius:8px;padding:10px 12px;border-left:3px solid '+color+';cursor:default"'+(tip?' title="'+tip.replace(/"/g,'&quot;')+'"':'')+'>'
+      +'<div style="font-size:8px;text-transform:uppercase;letter-spacing:1px;color:var(--txd);margin-bottom:4px">'+label+'</div>'
+      +'<div style="font-size:16px;font-weight:800;color:'+color+'">'+FI(Math.round(val))+' <span style="font-size:9px;font-weight:400">'+unit+'</span></div>'
+      +(sub?'<div style="font-size:8px;color:var(--txd);margin-top:2px">'+sub+'</div>':'')
+      +'</div>';
+  }
+  /* Build bonus tooltip: per-product breakdown */
+  var bonusTip='D\u00e9tail Bonus CFA:\n';
+  var bpKeys=Object.keys(d.bonusByProd).sort();
+  for(var bi=0;bi<bpKeys.length;bi++){bonusTip+=bpKeys[bi]+': '+FI(Math.round(d.bonusByProd[bpKeys[bi]]))+' F\n';}
+  bonusTip+='Total: '+FI(Math.round(d.totBonusCFA))+' F \u00f7 '+FI(d.pxAchat)+' F/kg = '+FI(Math.round(d.totBonusKg))+' kg';
+  /* Build pertes PdV tooltip: per-PdV breakdown */
+  var pertesPdv=d.totTheo-d.totClean;
+  var ppTip='Pertes par PdV (th\u00e9o \u2212 clean):\n';
+  var ppKeys=Object.keys(d.pertesByPdv).sort();
+  for(var pi2=0;pi2<ppKeys.length;pi2++){
+    var pp=d.pertesByPdv[ppKeys[pi2]];
+    var ppVal=pp.theo-pp.clean;
+    ppTip+=ppKeys[pi2]+': '+FI(Math.round(ppVal))+' kg (th\u00e9o '+FI(Math.round(pp.theo))+' \u2212 clean '+FI(Math.round(pp.clean))+')\n';
+  }
+  var pertesPdvColor=pertesPdv>=0?'#fb923c':'#22c55e';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+  h+=kpi('V. R\u00e9elle Clean',d.totClean,'kg','#22c55e','');
+  h+=kpi('Bonus',d.totBonusKg,'kg','#a78bfa',FI(Math.round(d.totBonusCFA))+' F \u00f7 '+FI(d.pxAchat)+' F/kg',bonusTip);
+  h+=kpi('V. Th\u00e9orique',d.totTheo,'kg','#3b82f6','PdVs retail');
+  h+=kpi('Pertes PdV',pertesPdv,'kg',pertesPdvColor,'th\u00e9o \u2212 clean',ppTip);
+  h+=kpi('Pertes Abattage',d.totAbat,'kg','#ef4444','th\u00e9o abattage');
+  h+=kpi('Pertes Ch. Froide',d.totCF,'kg','#f97316','th\u00e9o chambre froide');
+  var ecartColor=d.totEcart>=0?'#ef4444':'#22c55e';
+  h+=kpi('\u00c9cart R\u00e9siduel',d.totEcart,'kg',ecartColor,d.totEcart>=0?'viande manquante':'surplus bonus');
+  h+='</div>';
+
+  /* ── Stacked bar ── */
+  var total=d.totClean+d.totBonusKg+Math.abs(pertesPdv)+d.totAbat+d.totCF+Math.abs(d.totEcart);
+  if(total>0){
+    function pct(v){return Math.max(0,(Math.abs(v)/total*100)).toFixed(1);}
+    h+='<div style="margin:8px 0 4px;font-size:8px;color:var(--txd);text-transform:uppercase;letter-spacing:1px">D\u00e9composition du th\u00e9orique ('+FI(Math.round(d.totTheo))+' kg)</div>';
+    h+='<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;font-size:8px;font-weight:700;color:#000">';
+    h+='<div style="width:'+pct(d.totClean)+'%;background:#22c55e;display:flex;align-items:center;justify-content:center" title="Clean: '+FI(Math.round(d.totClean))+' kg">'+pct(d.totClean)+'%</div>';
+    h+='<div style="width:'+pct(d.totBonusKg)+'%;background:#a78bfa;display:flex;align-items:center;justify-content:center" title="Bonus: '+FI(Math.round(d.totBonusKg))+' kg">'+pct(d.totBonusKg)+'%</div>';
+    h+='<div style="width:'+pct(pertesPdv)+'%;background:#fb923c;display:flex;align-items:center;justify-content:center" title="Pertes PdV: '+FI(Math.round(pertesPdv))+' kg">'+pct(pertesPdv)+'%</div>';
+    h+='<div style="width:'+pct(d.totAbat)+'%;background:#ef4444;display:flex;align-items:center;justify-content:center" title="Abattage: '+FI(Math.round(d.totAbat))+' kg">'+pct(d.totAbat)+'%</div>';
+    h+='<div style="width:'+pct(d.totCF)+'%;background:#f97316;display:flex;align-items:center;justify-content:center" title="Ch. Froide: '+FI(Math.round(d.totCF))+' kg">'+pct(d.totCF)+'%</div>';
+    h+='<div style="width:'+pct(d.totEcart)+'%;background:'+(d.totEcart>=0?'#666':'#0ea5e9')+';display:flex;align-items:center;justify-content:center;color:#fff" title="\u00c9cart: '+FI(Math.round(d.totEcart))+' kg">'+pct(d.totEcart)+'%</div>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:12px;font-size:8px;color:var(--txd);margin:4px 0 12px;flex-wrap:wrap">';
+    h+='<span>\u25a0 <span style="color:#22c55e">Clean</span></span>';
+    h+='<span>\u25a0 <span style="color:#a78bfa">Bonus</span></span>';
+    h+='<span>\u25a0 <span style="color:#fb923c">Pertes PdV</span></span>';
+    h+='<span>\u25a0 <span style="color:#ef4444">Abattage</span></span>';
+    h+='<span>\u25a0 <span style="color:#f97316">Ch. Froide</span></span>';
+    h+='<span>\u25a0 <span style="color:#666">\u00c9cart</span></span>';
+    h+='</div>';
+  }
+
+  /* ── Marge Bovin Ultime ── */
+  h+='<div style="background:var(--bg2);border-radius:8px;padding:12px;margin:8px 0;border-left:3px solid #f59e0b">';
+  h+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;font-weight:700;margin-bottom:8px">\ud83d\udcb0 Marge Bovin Ultime</div>';
+  h+='<table style="font-size:9px;border-collapse:collapse;width:100%;max-width:600px">';
+  function margeRow(icon,label,val,color,detail){
+    return '<tr><td style="padding:3px 8px 3px 0;white-space:nowrap">'+icon+' '+label+'</td>'
+      +'<td style="text-align:right;padding:3px 0;font-weight:700;color:'+color+'">'+FI(Math.round(val))+' F</td>'
+      +(detail?'<td style="padding:3px 0 3px 8px;color:var(--txd)">'+detail+'</td>':'<td></td>')+'</tr>';
+  }
+  h+=margeRow('+','Recettes ventes',d.totAllReelCFA,'#22c55e','dont Abats/Peaux: '+FI(Math.round(d.totBonusAP))+' F | Foie/Yell: '+FI(Math.round(d.totBonusFY))+' F');
+  h+=margeRow('+','Commission MaaS',d.totMaaS,'#a78bfa',d.totMaaS>0?'taux '+((MAAS_RATE||0)*100)+'%':'aucun client MaaS');
+  h+=margeRow('\u2212','Co\u00fbt viande',d.coutViande,'#ef4444',FI(Math.round(d.totalTheoAllKg))+' kg \u00d7 '+FI(d.pxAchat)+' F/kg');
+  h+=margeRow('\u2212','Frais abattage',d.totFraisAb,'#f97316',d.totFraisAb>0?'depuis achats boeuf':'non disponible');
+  h+='<tr style="border-top:2px solid var(--bd)"><td style="padding:6px 8px 3px 0;font-weight:800">= Marge</td>';
+  var margeColor=d.margeUltime>=0?'#22c55e':'#ef4444';
+  var totalRecettes=d.totAllReelCFA+d.totMaaS;
+  var margePct=totalRecettes>0?((d.margeUltime/totalRecettes)*100).toFixed(1):'0';
+  h+='<td style="text-align:right;padding:6px 0 3px;font-weight:800;font-size:14px;color:'+margeColor+'">'+FI(Math.round(d.margeUltime))+' F</td>';
+  h+='<td style="padding:6px 0 3px 8px;color:'+margeColor+';font-weight:700">'+margePct+'%</td></tr>';
+  h+='</table></div>';
+
+  /* ── Product Tracker ── */
+  h+='<div style="background:var(--bg2);border-radius:8px;padding:12px;margin:8px 0;border-left:3px solid #06b6d4">';
+  h+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#06b6d4;font-weight:700;margin-bottom:6px">\ud83d\udd0d Tracker : '+PERRATION_TRACKER+'</div>';
+  h+='<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:9px">';
+  h+='<div><span style="color:var(--txd)">V. R\u00e9elles :</span> <b>'+FI(Math.round(d.tracker.reel))+' kg</b></div>';
+  h+='<div><span style="color:var(--txd)">Recettes :</span> <b style="color:#22c55e">'+FI(Math.round(d.tracker.reelF))+' F</b></div>';
+  h+='<div><span style="color:var(--txd)">V. Th\u00e9oriques :</span> <b>'+FI(Math.round(d.tracker.theo))+' kg</b></div>';
+  var trkPxMoy=d.tracker.reel>0?Math.round(d.tracker.reelF/d.tracker.reel):0;
+  h+='<div><span style="color:var(--txd)">Prix moy. vente :</span> <b style="color:#a78bfa">'+FI(trkPxMoy)+' F/kg</b></div>';
+  h+='</div></div>';
+
+  /* ── Daily detail table ── */
+  h+='<div class="st" style="margin-top:12px">\ud83d\udcc5 D\u00e9tail par jour</div>';
+  h+='<div class="tw sc"><table><thead><tr>';
+  h+='<th style="text-align:left">Date</th><th>Clean (kg)</th><th>Bonus (kg)</th><th>Bonus (F)</th>';
+  h+='<th>Th\u00e9o (kg)</th><th>Pertes PdV</th><th>Abattage (kg)</th><th>Ch.Froide (kg)</th><th>\u00c9cart (kg)</th>';
+  h+='<th>'+PERRATION_TRACKER+' (kg)</th><th>'+PERRATION_TRACKER+' (F)</th>';
+  h+='</tr></thead><tbody>';
+  for(var di=0;di<d.days.length;di++){
+    var dy=d.days[di];
+    var dd=dy.date;
+    var dlb=('0'+dd.getDate()).slice(-2)+'/'+('0'+(dd.getMonth()+1)).slice(-2);
+    var ecC=dy.ecart>=0?'var(--r2)':'var(--g)';
+    h+='<tr>';
+    h+='<td style="text-align:left;white-space:nowrap">'+dlb+'</td>';
+    h+='<td>'+FI(Math.round(dy.cleanKg))+'</td>';
+    h+='<td>'+FI(Math.round(dy.bonusKg))+'</td>';
+    h+='<td style="color:var(--txd)">'+FI(Math.round(dy.bonusCFA))+'</td>';
+    h+='<td style="font-weight:700">'+FI(Math.round(dy.theoKg))+'</td>';
+    var dyPPdv=dy.theoKg-dy.cleanKg;
+    h+='<td style="color:'+(dyPPdv>=0?'#fb923c':'var(--g)')+'">'+FI(Math.round(dyPPdv))+'</td>';
+    h+='<td style="color:var(--r2)">'+FI(Math.round(dy.abatKg))+'</td>';
+    h+='<td style="color:var(--o2)">'+FI(Math.round(dy.cfKg))+'</td>';
+    h+='<td style="color:'+ecC+';font-weight:700">'+FI(Math.round(dy.ecart))+'</td>';
+    h+='<td>'+FI(Math.round(dy.tracker.reel))+'</td>';
+    h+='<td style="color:var(--txd)">'+FI(Math.round(dy.tracker.reelF))+'</td>';
+    h+='</tr>';
+  }
+  /* Totals row */
+  h+='<tr style="font-weight:800;border-top:2px solid var(--bd)">';
+  h+='<td style="text-align:left">TOTAL</td>';
+  h+='<td style="color:#22c55e">'+FI(Math.round(d.totClean))+'</td>';
+  h+='<td style="color:#a78bfa">'+FI(Math.round(d.totBonusKg))+'</td>';
+  h+='<td style="color:var(--txd)">'+FI(Math.round(d.totBonusCFA))+'</td>';
+  h+='<td style="color:#3b82f6">'+FI(Math.round(d.totTheo))+'</td>';
+  h+='<td style="color:'+(pertesPdv>=0?'#fb923c':'#22c55e')+'">'+FI(Math.round(pertesPdv))+'</td>';
+  h+='<td style="color:#ef4444">'+FI(Math.round(d.totAbat))+'</td>';
+  h+='<td style="color:#f97316">'+FI(Math.round(d.totCF))+'</td>';
+  var totEcC=d.totEcart>=0?'#ef4444':'#22c55e';
+  h+='<td style="color:'+totEcC+'">'+FI(Math.round(d.totEcart))+'</td>';
+  h+='<td>'+FI(Math.round(d.tracker.reel))+'</td>';
+  h+='<td style="color:var(--txd)">'+FI(Math.round(d.tracker.reelF))+'</td>';
+  h+='</tr></tbody></table></div>';
+
+  el.innerHTML=h;
+
+  /* ── Bind controls ── */
+  var selMode=document.getElementById('prxMode');
+  if(selMode)selMode.addEventListener('change',function(){PERRATION_PRIX_MODE=this.value;PERRATION_PRIX_OVERRIDE=0;render();});
+  var prxInput=document.getElementById('prxOverride');
+  if(prxInput)prxInput.addEventListener('change',function(){var v=parseInt(this.value)||0;if(v>0){PERRATION_PRIX_OVERRIDE=v;}else{PERRATION_PRIX_OVERRIDE=0;}render();});
+  var prxReset=document.getElementById('prxReset');
+  if(prxReset)prxReset.addEventListener('click',function(){PERRATION_PRIX_OVERRIDE=0;render();});
+  var selTracker=document.getElementById('prxTracker');
+  if(selTracker)selTracker.addEventListener('change',function(){PERRATION_TRACKER=this.value;render();});
+  el.querySelectorAll('input[data-pex]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var pn=this.dataset.pex;
+      if(this.checked){if(PERRATION_EXCLUDE.indexOf(pn)<0)PERRATION_EXCLUDE.push(pn);}
+      else{PERRATION_EXCLUDE=PERRATION_EXCLUDE.filter(function(x){return x!==pn;});}
+      render();
+    });
+  });
+}
+
 function renderClients(el,tab){
   if(!VENTES_DATA){el.innerHTML='<div class="note" style="border-left-color:var(--o)">Importer le <b>Tableau Ventes</b> (3\u00e8me fichier) pour activer l\u2019analyse clients.</div>';return;}
   var filterPdv=(tab!=='__all__')?tab:null;
