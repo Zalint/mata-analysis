@@ -350,6 +350,7 @@ var PERRATION_EXCLUDE=['Abats','Peaux','Foie','Yell'];
 var PERRATION_PRIX_MODE='confondus'; /* 'boeuf','veau','confondus' */
 var PERRATION_PRIX_OVERRIDE=0; /* 0 = use calculated, >0 = manual override */
 var PERRATION_TRACKER='Jarret';
+var PERRATION_B2B_MODE='kg'; /* 'kg' or 'cfa' */
 var RAW_FILES={};
 var AUTO_ANALYSE=false; /* Store raw ArrayBuffers: {reconciliation:ab, achats:ab, ventes:ab, packs:str} */
 var RAW_FILES={}; /* store raw file data: {reconciliation:ArrayBuffer, achats:AB, ventes:AB, packs:string} */
@@ -3463,6 +3464,13 @@ function calcPerration(){
   var pertesByPdv={};/* pdvName → {theo,clean} */
   var theoByProd={};/* prodName → total theo kg (retail only) */
   var sousProdByProd={};/* excluded prodName → total theo kg */
+  /* Back-to-back: ventes réelles ajustées pack (hors sous-produits) */
+  var b2bVentesKg=0;/* ajust of non-excluded bovin, all PdVs */
+  var b2bVentesCFA=0;/* reelF of non-excluded bovin, all PdVs */
+  var b2bBonusCFA=0;/* reelF of excluded bovin, all PdVs (= bonusCFA total) */
+  var b2bPackSurplus=0;/* (ajust-reel) for non-excluded, retail only — for CFA calc */
+  /* Prix vente pondéré: sum(reelF)/sum(reel) per product, retail PdVs only */
+  var pvpByProd={};/* prodName → {reelF, reel} — retail only, for weighted selling price */
   /* Helper to process a PdV's days */
   function processPdv(pdvNm,days,role){
     /* role: 'retail','abattage','cf' */
@@ -3487,6 +3495,13 @@ function calcPerration(){
         /* Track bonus sub-categories */
         var isAP=pn==='Abats'||pn==='Peaux';
         var isFY=pn==='Foie'||pn==='Yell';
+        /* B2B: track ventes réelles ajustées pack (all PdVs) */
+        if(isExcluded(pn)){
+          b2bBonusCFA+=(p.reelF||0);
+        } else {
+          b2bVentesKg+=vReel;
+          b2bVentesCFA+=(p.reelF||0);
+        }
         if(role==='abattage'){
           dm.abatKg+=(p.theo||0);
           if(isExcluded(pn)){dm.bonusCFA+=(p.reelF||0);if(isAP)dm.bonusAbatsPeaux+=(p.reelF||0);if(isFY)dm.bonusFoieYell+=(p.reelF||0);bonusByProd[pn]=(bonusByProd[pn]||0)+(p.reelF||0);}
@@ -3504,6 +3519,12 @@ function calcPerration(){
           } else {
             dm.cleanKg+=vReel;
             pertesByPdv[pdvNm].clean+=vReel;
+            /* B2B: prix vente pondéré — retail only, non-excluded */
+            if(!pvpByProd[pn])pvpByProd[pn]={reelF:0,reel:0};
+            pvpByProd[pn].reelF+=(p.reelF||0);
+            pvpByProd[pn].reel+=(p.reel||0);
+            /* B2B: pack surplus = ajust - reel (retail only, non-excluded) */
+            b2bPackSurplus+=(vReel-(p.reel||0));
           }
           /* For Déchet products, theo variation must be absolute (negative not possible physically) */
           var theoVal=(p.theo||0);
@@ -3767,6 +3788,7 @@ function calcPerration(){
     fraisAbDetail:(function(){var arr=[];if(ACHATS_BOEUF_RAW&&ACHATS_BOEUF_RAW.length){for(var fl=0;fl<ACHATS_BOEUF_RAW.length;fl++){var aR=ACHATS_BOEUF_RAW[fl];var aD=aR.date||'';if(periodStart&&periodEnd&&(aD<periodStart||aD>periodEnd))continue;if(aR.frais_abattage>0)arr.push({date:aD,bete:aR.bete,frais:aR.frais_abattage});}}return arr;})(),
     margeBrute:margeBrute,margeAjustee:margeAjustee,pertesAbatCFA:pertesAbatCFA,pertesCFCFA:pertesCFCFA,margeUltime:margeUltime,totalTheoAllKg:totalTheoAllKg,
     stockMatinJ1:stockMatinJ1,stockSoirJn:stockSoirJn,sigmaAbattus:sigmaAbattus,bilanEcart:bilanEcart,
+    b2bVentesKg:b2bVentesKg,b2bVentesCFA:b2bVentesCFA,b2bBonusCFA:b2bBonusCFA,b2bPackSurplus:b2bPackSurplus,pvpByProd:pvpByProd,
     tracker:{reel:totTrkReel,reelF:totTrkReelF,theo:totTrkTheo,theoF:totTrkTheoF},
     allBovinProds:Object.keys(allBovinProds).sort()};
 }
@@ -3868,8 +3890,8 @@ function renderPerration(el){
   }
 
   /* ── Marge Bovin Ultime ── */
-  h+='<div style="background:var(--bg2);border-radius:8px;padding:12px;margin:8px 0;border-left:3px solid #f59e0b">';
-  h+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;font-weight:700;margin-bottom:8px">\ud83d\udcb0 Marge Bovin Ultime</div>';
+  h+='<details style="margin:8px 0"><summary style="cursor:pointer;background:var(--bg2);border-radius:8px;padding:10px 12px;border-left:3px solid #f59e0b;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;font-weight:700">\ud83d\udcb0 Marge Bovin Ultime</summary>';
+  h+='<div style="background:var(--bg2);border-radius:0 0 8px 8px;padding:12px;border-left:3px solid #f59e0b">';
   h+='<table style="font-size:9px;border-collapse:collapse;width:100%;max-width:600px">';
   function margeRow(icon,label,val,color,detail,fml){
     var cls=fml?' class="dbgV" data-lbl="'+label+'" data-fml="'+fml.replace(/"/g,'&quot;').replace(/'/g,'&#39;')+'"':'';
@@ -3919,11 +3941,11 @@ function renderPerration(el){
   h+='<tr style="border-top:3px double var(--bd)"><td style="padding:8px 8px 3px 0;font-weight:900;font-size:11px">\ud83c\udfc6 Marge ultime</td>';
   h+='<td style="text-align:right;padding:8px 0 3px;font-weight:900;font-size:15px;color:'+muColor+'">'+FI(Math.round(d.margeUltime))+' F</td>';
   h+='<td style="padding:8px 0 3px 8px;color:'+muColor+';font-weight:800">'+muPct+'%</td></tr>';
-  h+='</table></div>';
+  h+='</table></div></details>';
 
   /* ── Bilan Matière ── */
-  h+='<div style="background:var(--bg2);border-radius:8px;padding:14px;margin:10px 0;border-left:3px solid #eab308">';
-  h+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#eab308;font-weight:800;margin-bottom:10px">\ud83d\udce6 Bilan Mati\u00e8re — Bovin</div>';
+  h+='<details style="margin:10px 0"><summary style="cursor:pointer;background:var(--bg2);border-radius:8px;padding:10px 12px;border-left:3px solid #eab308;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#eab308;font-weight:800">\ud83d\udce6 Bilan Mati\u00e8re \u2014 Bovin</summary>';
+  h+='<div style="background:var(--bg2);border-radius:0 0 8px 8px;padding:14px;border-left:3px solid #eab308">';
   h+='<table style="width:100%;font-size:9px;border-collapse:collapse">';
   function bilanRow(icon,label,val,color,detail){
     return '<tr><td style="padding:3px 8px 3px 0;white-space:nowrap">'+icon+' '+label+'</td>'
@@ -3979,6 +4001,101 @@ function renderPerration(el){
   h+='<tr><td style="padding:0 8px 6px 0;font-size:9px;color:var(--txd)">Valorisation \u00e9cart</td>';
   h+='<td style="text-align:right;padding:0 0 6px;font-weight:700;font-size:10px;color:'+ecartCFAColor+'">'+(ecartCFA>=0?'+':'')+FI(ecartCFA)+' F</td>';
   h+='<td style="padding:0 0 6px 8px;font-size:9px;color:var(--txd)">'+ecartCFALabel+' | '+FK(Math.abs(d.bilanEcart))+' kg \u00d7 '+FI(Math.round(d.pxAchat))+' F/kg</td></tr>';
+  h+='</table></div></details>';
+
+  /* ── BILAN MATIÈRE BACK TO BACK ── */
+  h+='<div style="background:var(--bg2);border-radius:8px;padding:14px;margin:12px 0;border-left:3px solid #8b5cf6">';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+  h+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b5cf6;font-weight:700">\ud83d\udd04 Bilan Mati\u00e8re \u2014 Back to Back</div>';
+  h+='<div style="display:flex;gap:4px">';
+  h+='<button class="b2bToggle" data-mode="kg" style="font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #8b5cf6;background:'+(typeof PERRATION_B2B_MODE==='undefined'||PERRATION_B2B_MODE!=='cfa'?'#8b5cf6':'transparent')+';color:'+(typeof PERRATION_B2B_MODE==='undefined'||PERRATION_B2B_MODE!=='cfa'?'#fff':'#8b5cf6')+'">kg</button>';
+  h+='<button class="b2bToggle" data-mode="cfa" style="font-size:8px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid #8b5cf6;background:'+(typeof PERRATION_B2B_MODE!=='undefined'&&PERRATION_B2B_MODE==='cfa'?'#8b5cf6':'transparent')+';color:'+(typeof PERRATION_B2B_MODE!=='undefined'&&PERRATION_B2B_MODE==='cfa'?'#fff':'#8b5cf6')+'">CFA</button>';
+  h+='</div></div>';
+  var isCFA=typeof PERRATION_B2B_MODE!=='undefined'&&PERRATION_B2B_MODE==='cfa';
+  var unit=isCFA?' F':' kg';
+  var px=d.pxAchat;
+  /* Compute CFA values for ventes réelles pack: reelF + packSurplus × prix vente pondéré global */
+  var pvpGlobalReelF=0,pvpGlobalReel=0;
+  var pvpKeys=Object.keys(d.pvpByProd);
+  for(var pvi=0;pvi<pvpKeys.length;pvi++){pvpGlobalReelF+=d.pvpByProd[pvpKeys[pvi]].reelF;pvpGlobalReel+=d.pvpByProd[pvpKeys[pvi]].reel;}
+  var pvpGlobal=pvpGlobalReel>0?Math.round(pvpGlobalReelF/pvpGlobalReel):px;
+  var b2bVentesCFAFull=d.b2bVentesCFA+(d.b2bPackSurplus*pvpGlobal);
+  /* Values to display */
+  var v_sigma=isCFA?Math.round(d.sigmaAbattus*px):Math.round(d.sigmaAbattus);
+  var v_stMat=isCFA?Math.round(d.stockMatinJ1*px):Math.round(d.stockMatinJ1);
+  var v_stSoir=isCFA?Math.round(d.stockSoirJn*px):Math.round(d.stockSoirJn);
+  var v_dispo=v_sigma+v_stMat-v_stSoir;
+  var v_ventes=isCFA?Math.round(b2bVentesCFAFull):Math.round(d.b2bVentesKg);
+  var v_bonus=isCFA?Math.round(d.b2bBonusCFA):Math.round(d.b2bBonusCFA/px);
+  var v_sorties=v_ventes+v_bonus;
+  var v_ecart=v_sorties-v_dispo;
+  /* Info lines */
+  var v_pAbat=isCFA?Math.round(d.totAbat*px):Math.round(d.totAbat);
+  var v_pCF=isCFA?Math.round(d.totCF*px):Math.round(d.totCF);
+  var v_theoR=isCFA?Math.round(d.totTheo*px):Math.round(d.totTheo);
+  var FV=isCFA?FI:FK;
+  h+='<table style="width:100%;border-collapse:collapse;font-size:9px">';
+  /* ENTRÉES */
+  h+='<tr><td colspan="3" style="padding:6px 0 4px;font-size:8px;text-transform:uppercase;letter-spacing:1px;color:var(--txd);font-weight:700">Entr\u00e9es (co\u00fbt)</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:#ef4444">\u2212 \u03a3 Abattus (entr\u00e9es)</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#ef4444">'+FV(v_sigma)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">depuis achats-boeuf</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:#ef4444">\u2212 Stock matin J1</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#ef4444">'+FV(v_stMat)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">hors sous-produits</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:#22c55e">+ Stock soir Jn</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#22c55e">'+FV(v_stSoir)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">hors sous-produits</td></tr>';
+  h+='<tr style="border-top:1px solid var(--bd)"><td style="padding:4px 8px 4px 0;font-weight:700">= Total entr\u00e9es</td>';
+  h+='<td style="text-align:right;font-weight:900;font-size:11px;color:#ef4444">'+FV(v_dispo)+unit+'</td>';
+  h+='<td></td></tr>';
+  /* SORTIES */
+  h+='<tr><td colspan="3" style="padding:10px 0 4px;font-size:8px;text-transform:uppercase;letter-spacing:1px;color:var(--txd);font-weight:700">Sorties (Ventes r\u00e9elles)</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:#22c55e">+ Ventes r\u00e9elles ajust\u00e9es pack</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#22c55e">'+FV(v_ventes)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">tous bovin hors sous-produits, tous PdVs'+(isCFA?' (incl. packs \u00d7 '+FI(pvpGlobal)+' F/kg)':'')+'</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:#22c55e">+ Bonus (sous-produits)</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#22c55e">'+FV(v_bonus)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">Abats/Peaux/Foie/Yell'+(isCFA?' (CFA directement)':' ('+FI(Math.round(d.b2bBonusCFA))+' F \u00f7 '+FI(px)+' F/kg)')+'</td></tr>';
+  h+='<tr style="border-top:1px solid var(--bd)"><td style="padding:4px 8px 4px 0;font-weight:700">= Total sorties</td>';
+  h+='<td style="text-align:right;font-weight:900;font-size:11px;color:#22c55e">'+FV(v_sorties)+unit+'</td>';
+  h+='<td></td></tr>';
+  /* ÉCART */
+  var b2bEcartColor=Math.abs(v_ecart)<1?'#22c55e':(v_ecart>0?'#f97316':'#ef4444');
+  h+='<tr style="border-top:2px solid var(--bd)"><td style="padding:8px 8px 2px 0;font-weight:900">\u2696\ufe0f \u00c9cart</td>';
+  h+='<td style="text-align:right;padding:8px 0 2px;font-weight:900;font-size:14px;color:'+b2bEcartColor+'">'+FV(v_ecart)+unit+'</td>';
+  var b2bEcartLabel=Math.abs(v_ecart)<1?'parfait':(v_ecart>0?'exc\u00e9dent inexpliq\u00e9':'viande non trac\u00e9e');
+  h+='<td style="padding:8px 0 2px 8px;font-size:9px;color:'+b2bEcartColor+';font-weight:700">'+b2bEcartLabel+'</td></tr>';
+  /* AJUSTEMENTS après écart — CFA mode only */
+  if(isCFA){
+  var v_maas=Math.round(d.totMaaS);
+  var v_frais=Math.round(d.totFraisAb);
+  h+='<tr><td style="padding:4px 8px 2px 0;color:#22c55e">+ Commission MaaS</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#22c55e">'+FI(v_maas)+' F</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">taux 2.5%</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:#ef4444">\u2212 Frais abattage</td>';
+  h+='<td style="text-align:right;font-weight:700;color:#ef4444">'+FI(v_frais)+' F</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">depuis achats-boeuf</td></tr>';
+  var v_net=v_ecart+v_maas-v_frais;
+  var b2bNetColor=v_net>=0?'#22c55e':'#ef4444';
+  h+='<tr style="border-top:1px solid var(--bd)"><td style="padding:6px 8px 2px 0;font-weight:900">\ud83c\udfc6 R\u00e9sultat net</td>';
+  h+='<td style="text-align:right;padding:6px 0 2px;font-weight:900;font-size:13px;color:'+b2bNetColor+'">'+FI(v_net)+' F</td>';
+  var b2bNetPct=v_sorties>0?((v_net/v_sorties)*100).toFixed(1):'0.0';
+  h+='<td style="padding:6px 0 2px 8px;font-size:9px;color:'+b2bNetColor+';font-weight:700">'+b2bNetPct+'%</td></tr>';
+  }
+  /* POUR INFO */
+  h+='<tr><td colspan="3" style="padding:10px 0 4px;font-size:8px;text-transform:uppercase;letter-spacing:1px;color:var(--txd);font-weight:700">Pour info</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:var(--txd)">\u2139 Pertes Abattage (th\u00e9o)</td>';
+  h+='<td style="text-align:right;color:var(--txd)">'+FV(v_pAbat)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">variation abattage</td></tr>';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:var(--txd)">\u2139 Pertes Ch. Froide (th\u00e9o)</td>';
+  h+='<td style="text-align:right;color:var(--txd)">'+FV(v_pCF)+unit+'</td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">variation chambre froide</td></tr>';
+  var v_diffTheoVentes=v_theoR-v_ventes;
+  var diffColor=v_diffTheoVentes>=0?'#f97316':'#22c55e';
+  h+='<tr><td style="padding:2px 8px 2px 0;color:var(--txd)">\u2139 V. Th\u00e9orique retail</td>';
+  h+='<td style="text-align:right;color:var(--txd)">'+FV(v_theoR)+unit+' <span style="color:'+diffColor+';font-size:8px">('+(v_diffTheoVentes>=0?'+':'')+FV(v_diffTheoVentes)+unit+')</span></td>';
+  h+='<td style="padding:0 0 0 8px;color:var(--txd)">hors sous-produits (\u00e9cart vs ventes r\u00e9elles)</td></tr>';
   h+='</table></div>';
 
   /* ── Product Tracker ── */
@@ -4053,6 +4170,10 @@ function renderPerration(el){
       else{PERRATION_EXCLUDE=PERRATION_EXCLUDE.filter(function(x){return x!==pn;});}
       render();
     });
+  });
+  /* B2B toggle */
+  el.querySelectorAll('.b2bToggle').forEach(function(btn){
+    btn.addEventListener('click',function(){PERRATION_B2B_MODE=this.dataset.mode;render();});
   });
 }
 
