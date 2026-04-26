@@ -585,6 +585,8 @@ function calcCostDay(day,pdv){
   }
   /* Pack composition cost is already included in detail.bovin/veau/poulet/agneau via theo×prix — adding montantInformatif here would double-count */
   var total=detail.bovin.cost+detail.veau.cost+detail.poulet.cost+detail.agneau.cost+detail.poisson.cost;
+  /* Inter-PV cost transfer: + on receiver, − on sender (Centre de Découpe) */
+  total+=(day._ipvCostAdj||0);
   return{total:total,detail:detail,bovinProdDetail:bovinProdDetail};
 }
 
@@ -1574,6 +1576,9 @@ async function launchApiAnalysis(){
     /* ── Step 3: reconciliation → DATA ── */
     apStatus('3/4 Transformation donn\u00e9es\u2026');
     var newData={},newDataCF={};
+    /* DEBUG helpers: sum cashR across all PdV/days */
+    function _sumCash(d){var t=0,k=Object.keys(d||{});for(var i=0;i<k.length;i++){var arr=d[k[i]]||[];for(var j=0;j<arr.length;j++)t+=arr[j].cashR||0;}return t;}
+    function _byPdv(d){var o={},k=Object.keys(d||{});for(var i=0;i<k.length;i++){var s=0,arr=d[k[i]]||[];for(var j=0;j<arr.length;j++)s+=arr[j].cashR||0;o[k[i]]=Math.round(s);}return o;}
     if(reconRes.success&&reconRes.data&&reconRes.data.byDate){
       var byDate=reconRes.data.byDate;
       var dKeys=Object.keys(byDate);
@@ -1611,6 +1616,63 @@ async function launchApiAnalysis(){
           target[pdvNm].push({date:dayDate,prods:dayProds,cashR:cashR,cashT:cashT,cashE:cashE});
         }
       }
+      console.group('%c[CA DEBUG] Étape 3 — Reconciliation (avant inter-PV, avant packs)','color:#3b82f6;font-weight:bold');
+      console.log('Total cashR (recon seule):',Math.round(_sumCash(newData)),'FCFA');
+      console.log('Par PdV:',_byPdv(newData));
+      console.groupEnd();
+      /* Inject inter-PV transfers into receiving PdVs (from /api/external/ventes) */
+      /* Also transfer cost from sending CD to receiving PdV: cost = Nombre × prix_achat */
+      var _ipvAdded=0,_ipvCount=0,_ipvCostMoved=0;
+      function _findOrCreateDay(target,pdv,date){
+        if(!target[pdv])target[pdv]=[];
+        var days=target[pdv];
+        for(var k=0;k<days.length;k++){var dc=days[k].date;if(dc.getFullYear()===date.getFullYear()&&dc.getMonth()===date.getMonth()&&dc.getDate()===date.getDate())return days[k];}
+        var nd={date:date,prods:{},cashR:0,cashT:0,cashE:0};target[pdv].push(nd);return nd;
+      }
+      function _ipvUnitPrice(cat,prodName,pdv,dk){
+        var c=String(cat||'').toLowerCase(),pn=String(prodName||'').toLowerCase();
+        if(c==='bovin'){return pn.indexOf('veau')>=0?getPrix(pdv,dk,'veau'):getPrix(pdv,dk,'bovin');}
+        if(c==='volaille')return getPrix(pdv,dk,'poulet');
+        if(c==='ovin'||c==='caprin')return getPrix(pdv,dk,'agneau');
+        if(c==='poisson'){var pc=POISSON_CONFIG[prodName];return pc?pc.achat:getPrix(pdv,dk,'poisson');}
+        return 0;
+      }
+      if(ventesRes&&ventesRes.success&&Array.isArray(ventesRes.ventes)){
+        for(var ipi=0;ipi<ventesRes.ventes.length;ipi++){
+          var ipv=ventesRes.ventes[ipi];
+          if(ipv.source!=='inter-pv')continue;
+          var ipvPdv=ipv['Point de Vente'];if(!ipvPdv)continue;
+          var isCFipv=ipvPdv==='Chambre froide';
+          if(!isCFipv&&SKIP.indexOf(ipvPdv)>=0)continue;
+          var ipvTarget=isCFipv?newDataCF:newData;
+          var ipvParts=String(ipv.Date||'').split('-');if(ipvParts.length!==3)continue;
+          var ipvDate=new Date(+ipvParts[2],+ipvParts[1]-1,+ipvParts[0]);
+          if(isNaN(ipvDate.getTime()))continue;
+          var ipvAmount=parseFloat(ipv.Montant)||0;
+          var ipvNbr=parseFloat(ipv.Nombre)||0;
+          var ipvDk=ipvDate.toLocalISO_TEMP();
+          var ipvUnit=_ipvUnitPrice(ipv['Catégorie'],ipv.Produit,ipvPdv,ipvDk);
+          var ipvCost=ipvNbr*ipvUnit;
+          /* Receiving PdV: + CA + transferred cost */
+          var rcvDay=_findOrCreateDay(ipvTarget,ipvPdv,ipvDate);
+          rcvDay.cashR+=ipvAmount;
+          rcvDay._ipvCostAdj=(rcvDay._ipvCostAdj||0)+ipvCost;
+          /* Sending PdV (Centre de Découpe): − transferred cost */
+          var sendPdv=ipv['Type de vente'];
+          if(sendPdv){
+            var sendTarget=(newDataCF[sendPdv])?newDataCF:newData;
+            var sendDay=_findOrCreateDay(sendTarget,sendPdv,ipvDate);
+            sendDay._ipvCostAdj=(sendDay._ipvCostAdj||0)-ipvCost;
+          }
+          _ipvAdded+=ipvAmount;_ipvCount++;_ipvCostMoved+=ipvCost;
+        }
+      }
+      console.group('%c[CA DEBUG] Étape 3.5 — Inter-PV injectés','color:#22c55e;font-weight:bold');
+      console.log('Lignes inter-PV ajoutées:',_ipvCount,'| CA ajouté:',Math.round(_ipvAdded),'FCFA');
+      console.log('Coût transféré du CD vers receveur:',Math.round(_ipvCostMoved),'FCFA');
+      console.log('Total cashR (recon + inter-PV):',Math.round(_sumCash(newData)),'FCFA');
+      console.log('Par PdV (CA):',_byPdv(newData));
+      console.groupEnd();
       /* Sort days per PdV */
       var pdvList=Object.keys(newData);
       for(var si=0;si<pdvList.length;si++){
@@ -1624,6 +1686,7 @@ async function launchApiAnalysis(){
 
     /* ── Step 4: pack → inject into DATA days ── */
     if(packRes.success)PACK_DATA=packRes;
+    var _pkAdded=0,_pkCount=0;
     if(packRes.success&&packRes.pointsVente){
       var pkPdvs=Object.keys(packRes.pointsVente);
       for(var pki=0;pki<pkPdvs.length;pki++){
@@ -1651,7 +1714,8 @@ async function launchApiAnalysis(){
                 if(!dd.prods[pkNm])dd.prods[pkNm]={reel:0,theo:0,ajust:0,cat:'Pack',catOrig:'Pack',reelF:0,theoF:0,ecartF:0};
                 dd.prods[pkNm].reel+=pkQty;dd.prods[pkNm].theo+=pkQty;dd.prods[pkNm].ajust+=pkQty;
                 dd.prods[pkNm].reelF+=pkFA;dd.prods[pkNm].theoF+=pkFA;
-                dd.cashR+=pkFA;dd.cashT+=pkFA;
+                /* cashR/cashT NOT incremented: packs are already in recon ventesValeur */
+                _pkAdded+=pkFA;_pkCount++;
                 break;
               }
             }
@@ -1659,6 +1723,12 @@ async function launchApiAnalysis(){
         }
       }
     }
+    console.group('%c[CA DEBUG] Étape 4 — Packs injectés (cashR += pkFA)','color:#f59e0b;font-weight:bold');
+    console.log('Lignes packs ajoutées:',_pkCount,'| Montant ajouté:',Math.round(_pkAdded),'FCFA');
+    console.log('Total cashR (recon + inter-PV + packs):',Math.round(_sumCash(newData)),'FCFA');
+    console.log('Par PdV:',_byPdv(newData));
+    console.warn('⚠️  Si les packs sont déjà dans recon ventesValeur → DOUBLE COMPTAGE de '+Math.round(_pkAdded)+' FCFA');
+    console.groupEnd();
 
     /* ── Step 5: ventes → VENTES_DATA ── */
     VENTES_DATA={orders:{},byClient:{},byHour:{},byPdv:{}};
