@@ -274,7 +274,13 @@ const server = http.createServer(async (req, res) => {
     try {
       const MATA_EXT_KEY = process.env.MATA_EXT_KEY;
       if (!MATA_EXT_KEY) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'MATA_EXT_KEY not configured' })); return; }
-      const targetUrl = 'https://mata-lgzy.onrender.com' + req.url;
+      let proxyUrl = req.url;
+      const [proxyPath] = proxyUrl.split('?');
+      const interPVPaths = ['/api/external/ventes', '/api/external/reconciliation', '/api/external/reconciliation/by-date'];
+      if (interPVPaths.includes(proxyPath) && !/[?&]interPVDecoupe=/.test(proxyUrl)) {
+        proxyUrl += (proxyUrl.includes('?') ? '&' : '?') + 'interPVDecoupe=Y';
+      }
+      const targetUrl = 'https://mata-lgzy.onrender.com' + proxyUrl;
       const extRes = await fetch(targetUrl, { headers: { 'x-api-key': MATA_EXT_KEY } });
       const body = await extRes.text();
       res.writeHead(extRes.status, { 'Content-Type': 'application/json; charset=utf-8' });
