@@ -274,7 +274,24 @@ const server = http.createServer(async (req, res) => {
     try {
       const MATA_EXT_KEY = process.env.MATA_EXT_KEY;
       if (!MATA_EXT_KEY) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ success: false, error: 'MATA_EXT_KEY not configured' })); return; }
-      const targetUrl = 'https://mata-lgzy.onrender.com' + req.url;
+      const interPVPaths = ['/api/external/ventes', '/api/external/reconciliation', '/api/external/reconciliation/by-date'];
+      const dateParams = ['dateDebut', 'dateFin', 'startDate', 'endDate', 'date_debut', 'date_fin', 'start_date', 'end_date'];
+      const ddmmyyyy = /^(\d{2})-(\d{2})-(\d{4})$/;
+      const [proxyPath, proxyQuery = ''] = req.url.split('?');
+      let proxyUrl = req.url;
+      if (interPVPaths.includes(proxyPath)) {
+        const params = new URLSearchParams(proxyQuery);
+        for (const k of dateParams) {
+          const v = params.get(k);
+          if (v) {
+            const m = v.match(ddmmyyyy);
+            if (m) params.set(k, `${m[3]}-${m[2]}-${m[1]}`);
+          }
+        }
+        if (!params.has('interPVDecoupe')) params.set('interPVDecoupe', 'Y');
+        proxyUrl = proxyPath + '?' + params.toString();
+      }
+      const targetUrl = 'https://mata-lgzy.onrender.com' + proxyUrl;
       const extRes = await fetch(targetUrl, { headers: { 'x-api-key': MATA_EXT_KEY } });
       const body = await extRes.text();
       res.writeHead(extRes.status, { 'Content-Type': 'application/json; charset=utf-8' });
