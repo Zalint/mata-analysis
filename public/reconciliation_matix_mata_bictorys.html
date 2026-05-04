@@ -317,10 +317,20 @@ function reconcile() {
   };
 
   const ventesMap = {};
+  let _vmTotal = 0, _vmIpv = 0, _vmReg = 0;
   for (const row of ventes) {
     if (!row.__date) continue;
-    ventesMap[row.__date] = (ventesMap[row.__date]||0) + parseFloat(row["Montant"]||row["montant"]||0);
+    const m = parseFloat(row["Montant"]||row["montant"]||0);
+    ventesMap[row.__date] = (ventesMap[row.__date]||0) + m;
+    _vmTotal += m;
+    if (row.source === 'inter-pv') _vmIpv += m; else _vmReg += m;
   }
+  console.group('%c[VENTES DEBUG] Construction ventesMap','color:#22c55e;font-weight:bold');
+  console.log('Lignes traitées:', ventes.length, '| Total:', Math.round(_vmTotal), 'F');
+  console.log('  ↳ vente classique:', Math.round(_vmReg), 'F');
+  console.log('  ↳ inter-pv       :', Math.round(_vmIpv), 'F');
+  console.log('ventesMap par date:', Object.fromEntries(Object.entries(ventesMap).map(([k,v])=>[k,Math.round(v)])));
+  console.groupEnd();
   const versMap = {};
   for (const row of versements) {
     if (!row.__date) continue;
@@ -1490,10 +1500,27 @@ async function launchApiAndAnalyze() {
       .then(r => r.json())
       .then(data => {
         const rows = Array.isArray(data) ? data : (data.ventes || data.data || []);
-        state.rawData.ventes = rows.map(row => {
+        console.group('%c[VENTES DEBUG] Réponse API /ventes','color:#3b82f6;font-weight:bold');
+        console.log('rows reçus de l\'API:', rows.length);
+        const bySrc = {};
+        rows.forEach(r => { const s = r.source || '?'; bySrc[s] = (bySrc[s]||0) + parseFloat(r.Montant||r.montant||0); });
+        console.log('Par source (avant parse/filter):', bySrc);
+        const sample = rows.find(r => r.source === 'inter-pv');
+        if (sample) console.log('Exemple inter-pv (Date raw):', sample.Date, '→ parseDataDate:', parseDataDate(sample.Date));
+        else console.warn('⚠ AUCUN inter-pv dans la réponse API');
+        const mapped = rows.map(row => {
           const raw = row["Date"] || row["date"];
           return { ...row, __date: parseDataDate(raw) };
-        }).filter(row => row.__date && (!start || row.__date >= start) && (!end || row.__date <= end));
+        });
+        const filtered = mapped.filter(row => row.__date && (!start || row.__date >= start) && (!end || row.__date <= end));
+        const bySrcF = {};
+        filtered.forEach(r => { const s = r.source || '?'; bySrcF[s] = (bySrcF[s]||0) + parseFloat(r.Montant||r.montant||0); });
+        console.log('Après filtre date [' + start + ' → ' + end + ']:', filtered.length, 'rows');
+        console.log('Par source (après filtre):', bySrcF);
+        const lostIpv = rows.filter(r => r.source === 'inter-pv').length - filtered.filter(r => r.source === 'inter-pv').length;
+        if (lostIpv > 0) console.warn('⚠ '+lostIpv+' lignes inter-pv perdues au filtre date');
+        console.groupEnd();
+        state.rawData.ventes = filtered;
         state.apiStatus.ventes = "ok"; _tick('Ventes');
       })
       .catch(e => { state.apiStatus.ventes = "error:" + e.message; _tick('Ventes'); }),
